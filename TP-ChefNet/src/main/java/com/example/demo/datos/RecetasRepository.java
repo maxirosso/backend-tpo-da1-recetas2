@@ -72,5 +72,7 @@ public interface RecetasRepository extends JpaRepository<Recetas, Integer> {
 
     Optional<Recetas> findByNombreRecetaAndUsuario(String nombreReceta, Usuarios usuario);
 
+    // Get the 3 most recent recipes
+    List<Recetas> findTop3ByOrderByFechaDesc();
 
 }

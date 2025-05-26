@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -153,14 +154,12 @@ public class Controlador {
 	    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
 	}
 	
-	/*
 	//si tiene conexión se le mostrarán las 3 últimas recetas cargadas por los usuarios
 	@GetMapping("/ultimasRecetas")
 	public ResponseEntity<List<Recetas>> getUltimasRecetas() {
-	    List<Recetas> recetas = recetasRepository.findBy3Recetas();
+	    List<Recetas> recetas = recetasRepository.findTop3ByOrderByFechaDesc();
 	    return ResponseEntity.ok(recetas);
 	}
-	*/
 	
 	
 	//recuperar clave
@@ -316,7 +315,12 @@ public class Controlador {
 	
 	//realizar sugerencias 
 	@GetMapping("/sugerenciasRecetas")
-	public ResponseEntity<List<Recetas>> sugerenciasCulinarias(@RequestParam(required = false) TiposReceta tipo) {
+	public ResponseEntity<List<Recetas>> sugerenciasCulinarias(@RequestParam(required = false) Integer idTipo) {
+	    TiposReceta tipo = null;
+	    if (idTipo != null) {
+	        tipo = new TiposReceta();
+	        tipo.setIdTipo(idTipo);
+	    }
 	    List<Recetas> sugeridas = recetasDAO.obtenerSugerencias(tipo);
 	    return ResponseEntity.ok(sugeridas);
 	}
@@ -603,9 +607,59 @@ public class Controlador {
     
     //---GET ALL RECETAS
     @GetMapping("/getAllRecetas")
-    public ResponseEntity<List<Recetas>> obtenerRecetas() {
-        List<Recetas> todasRecetas = recetasDAO.getAllRecetas();
-        return new ResponseEntity<>(todasRecetas, HttpStatus.OK);
+    public ResponseEntity<List<Map<String, Object>>> obtenerRecetas() {
+        try {
+            List<Recetas> todasRecetas = recetasDAO.getAllRecetas();
+            List<Map<String, Object>> recetasDTO = todasRecetas.stream()
+                .map(receta -> {
+                    Map<String, Object> dto = new HashMap<>();
+                    dto.put("idReceta", receta.getIdReceta());
+                    dto.put("nombreReceta", receta.getNombreReceta());
+                    dto.put("descripcionReceta", receta.getDescripcionReceta());
+                    dto.put("fotoPrincipal", receta.getFotoPrincipal());
+                    dto.put("porciones", receta.getPorciones());
+                    dto.put("cantidadPersonas", receta.getCantidadPersonas());
+                    dto.put("fecha", receta.getFecha());
+                    dto.put("autorizada", receta.isAutorizada());
+                    dto.put("instrucciones", receta.getInstrucciones());
+                    
+                    if (receta.getIdTipo() != null) {
+                        Map<String, Object> tipoDTO = new HashMap<>();
+                        tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
+                        tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
+                        dto.put("tipo", tipoDTO);
+                    }
+                    
+                    if (receta.getUsuario() != null) {
+                        Map<String, Object> usuarioDTO = new HashMap<>();
+                        usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+                        usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+                        usuarioDTO.put("mail", receta.getUsuario().getMail());
+                        usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+                        dto.put("usuario", usuarioDTO);
+                    }
+                    
+                    if (receta.getIngredientes() != null && !receta.getIngredientes().isEmpty()) {
+                        List<Map<String, Object>> ingredientesDTO = receta.getIngredientes().stream()
+                            .map(ingrediente -> {
+                                Map<String, Object> ingDTO = new HashMap<>();
+                                ingDTO.put("idIngrediente", ingrediente.getIdIngrediente());
+                                ingDTO.put("nombre", ingrediente.getNombre());
+                                ingDTO.put("cantidad", ingrediente.getCantidad());
+                                return ingDTO;
+                            })
+                            .collect(Collectors.toList());
+                        dto.put("ingredientes", ingredientesDTO);
+                    }
+                    
+                    return dto;
+                })
+                .collect(Collectors.toList());
+            return new ResponseEntity<>(recetasDTO, HttpStatus.OK);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
     
 
@@ -620,14 +674,35 @@ public class Controlador {
     }
     
     //---GET RECETAS BY ID
-    @GetMapping("getRecetaById/{idReceta}")
-    public ResponseEntity<Recetas> getRecetaById(@PathVariable Integer idReceta) {
-        Optional<Recetas> recetaOptional = recetasRepository.findById(idReceta);
-        if (recetaOptional.isPresent()) {
-            return new ResponseEntity<>(recetaOptional.get(), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    @GetMapping("/getRecetaById/{id}")
+    public ResponseEntity<Map<String, Object>> getRecetaById(@PathVariable("id") Long id) {
+        Recetas receta = recetasDAO.findByIdOptional(id.intValue()).orElse(null);
+        if (receta == null) {
+            return ResponseEntity.notFound().build();
         }
+        Map<String, Object> dto = new HashMap<>();
+        dto.put("idReceta", receta.getIdReceta());
+        dto.put("nombreReceta", receta.getNombreReceta());
+        dto.put("descripcionReceta", receta.getDescripcionReceta());
+        dto.put("fotoPrincipal", receta.getFotoPrincipal());
+        dto.put("porciones", receta.getPorciones());
+        dto.put("cantidadPersonas", receta.getCantidadPersonas());
+        dto.put("fecha", receta.getFecha());
+        // Usuario simple
+        if (receta.getUsuario() != null) {
+            Map<String, Object> usuarioDTO = new HashMap<>();
+            usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+            usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+            usuarioDTO.put("mail", receta.getUsuario().getMail());
+            usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+            dto.put("usuario", usuarioDTO);
+        }
+        // Ingredientes planos
+        dto.put("ingredientes", receta.getIngredientes());
+        // Instrucciones planas
+        dto.put("instrucciones", receta.getInstrucciones());
+        // Otros campos simples si existen
+        return ResponseEntity.ok(dto);
     }
 
     // Agregar Receta a la lista de recetas seleccionadas

@@ -60,7 +60,7 @@ public class Recetas {
     private List<Usuarios> usuariosAIntentar;
 	
 	@Column(name = "autorizada")
-	private boolean autorizada = false;
+	private Boolean autorizada = false;
 	
 	private String instrucciones;
 	
@@ -170,11 +170,11 @@ public class Recetas {
 		this.usuariosAIntentar = usuariosAIntentar;
 	}
 	
-	public boolean isAutorizada() {
+	public Boolean isAutorizada() {
 	    return autorizada;
 	}
 
-	public void setAutorizada(boolean autorizada) {
+	public void setAutorizada(Boolean autorizada) {
 	    this.autorizada = autorizada;
 	}
 
