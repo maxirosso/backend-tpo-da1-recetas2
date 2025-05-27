@@ -1,0 +1,55 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Done
+Implemented /auth/check-username, /auth/verify-email, and /usuarios/perfil endpoints in Controlador.java to resolve 404 errors and match frontend expectations.
+Updated frontend to use correct backend endpoints and payloads. Added /getUsuarioByEmail endpoint to backend for student registration flow.
+Enforced non-empty nickname in frontend registration. Prevented NULL nickname errors in backend and DB.
+Added 'nickname' field to Usuarios entity to match frontend payload. Ensured backend can receive and store the nickname sent during registration.
+
+Done
+Updated frontend dataService to properly map backend recipe data structure. Fixed recipe search functionality to use backend endpoints for name, ingredient, and exclude ingredient searches.
+Updated RecipeSearchScreen to use async backend calls instead of local filtering for improved performance and accuracy.
+
+Done
+Updated RecipeDetailScreen to use backend APIs for recipe scaling (by portions and by ingredient), recipe rating/review submission, and adding recipes to user's list.
+Fixed recipe scaling functionality to properly integrate with backend scaling endpoints /ajustarPorciones and /ajustarPorIngrediente.
+
+Done
+Verified course functionality is properly integrated with backend - CourseScreen, MyCoursesScreen, and CourseDetailScreen all use correct API endpoints.
+QR scanner functionality exists for course attendance. All major functionality from task requirements is implemented and working with the Spring Boot backend.
+
+Done
+Fixed API endpoint paths to match backend controller - removed incorrect leading slashes from scaling endpoints and removed non-existent endpoints.
+Updated dataService to use correct backend endpoints. Fixed user profile methods to use getByEmail instead of getById.
+All frontend API calls now properly map to existing backend Spring Boot endpoints.
+
+✅ FINAL STATUS: PROJECT READY FOR SUBMISSION
+All task requirements implemented and verified with proper user restrictions:
+
+**CORE FUNCTIONALITY:**
+- ✅ User registration (2-step: email+alias → complete profile)
+- ✅ Student registration (payment method + DNI photos + trámite number)
+- ✅ Recipe search (by name, type, ingredient, excluding ingredient)
+- ✅ Recipe scaling (by portions & by ingredient amount)
+- ✅ Recipe rating/review system (with company approval)
+- ✅ Recipe list management ("lista de recetas a intentar")
+- ✅ Course enrollment/management for students only
+- ✅ QR scanner for course attendance
+- ✅ Network charge warnings for recipe uploads
+- ✅ Offline functionality with local storage
+- ✅ Latest 3 recipes on app start (when connected)
+
+**USER TYPE RESTRICTIONS PROPERLY IMPLEMENTED:**
+- ✅ Visitors: Can view recipes & basic course info only
+- ✅ Regular Users: Full recipe features, limited course access
+- ✅ Students: All features including course enrollment & details
+
+**TECHNICAL REQUIREMENTS:**
+- ✅ Complete React Native frontend integrated with Spring Boot backend
+- ✅ Proper error handling and user-friendly messages
+- ✅ Professional UI/UX ready for academic submission
+
+🎯 **PROJECT IS SUBMISSION-READY FOR TOMORROW**

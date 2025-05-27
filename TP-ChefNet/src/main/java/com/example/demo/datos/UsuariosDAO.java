@@ -51,6 +51,10 @@ public class UsuariosDAO {
     }
     
     public Recetas cargarReceta(Recetas receta) {
+        // Ensure new recipes are not authorized by default (pending approval)
+        if (receta.getIdReceta() == null) {
+            receta.setAutorizada(false);
+        }
         return recetasRepository.save(receta);
     }
     

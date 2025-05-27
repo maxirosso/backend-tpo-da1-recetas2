@@ -184,21 +184,74 @@ public class Controlador {
 	//registrar usuario
 	@PostMapping("/registrarUsuario")
 	public ResponseEntity<String> registrarUsuario(@RequestBody Usuarios usuario) {
+	    if (usuario.getMail() == null || usuario.getMail().trim().isEmpty()) {
+	        return ResponseEntity.badRequest().body("El correo electrónico es obligatorio");
+	    }
+	    if (usuario.getPassword() == null || usuario.getPassword().trim().isEmpty()) {
+	        return ResponseEntity.badRequest().body("La contraseña es obligatoria");
+	    }
+	    if (usuario.getNickname() == null || usuario.getNickname().trim().isEmpty()) {
+	        return ResponseEntity.badRequest().body("El nombre de usuario (nickname) es obligatorio");
+	    }
 	    if (usuariosRepository.existsByMail(usuario.getMail())) {
 	        return ResponseEntity.badRequest().body("Ya existe un usuario con ese mail");
 	    }
 	    usuario.setTipo("comun"); // por defecto, o "alumno" si corresponde
 	    usuario.setHabilitado("no"); // podría habilitarse luego de verificar el email, etc.
 	    usuariosRepository.save(usuario);
-
 	    return ResponseEntity.ok("Usuario registrado exitosamente");
 	}
 	
 	//get recetas usuario
     @GetMapping("/getRecetasUsuario")
-    public ResponseEntity<List<Recetas>> obtenerRecetasUsuario(@RequestParam Usuarios idUsuario) {
-        List<Recetas> recetas = usuariosDAO.obtenerRecetas(idUsuario);
-        return new ResponseEntity<>(recetas, HttpStatus.OK);
+    public ResponseEntity<List<Map<String, Object>>> obtenerRecetasUsuario(@RequestParam Integer idUsuario) {
+        try {
+            Usuarios usuario = usuariosDAO.findById(idUsuario);
+            if (usuario == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            List<Recetas> recetas = usuariosDAO.obtenerRecetas(usuario);
+            
+            // Convert to DTOs to avoid circular references and include all user recipes (including pending)
+            List<Map<String, Object>> recetasDTO = recetas.stream()
+                .map(receta -> {
+                    Map<String, Object> dto = new HashMap<>();
+                    dto.put("idReceta", receta.getIdReceta());
+                    dto.put("nombreReceta", receta.getNombreReceta());
+                    dto.put("descripcionReceta", receta.getDescripcionReceta());
+                    dto.put("fotoPrincipal", receta.getFotoPrincipal());
+                    dto.put("porciones", receta.getPorciones());
+                    dto.put("cantidadPersonas", receta.getCantidadPersonas());
+                    dto.put("fecha", receta.getFecha());
+                    dto.put("autorizada", receta.isAutorizada());
+                    dto.put("instrucciones", receta.getInstrucciones());
+                    
+                    if (receta.getIdTipo() != null) {
+                        Map<String, Object> tipoDTO = new HashMap<>();
+                        tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
+                        tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
+                        dto.put("tipo", tipoDTO);
+                    }
+                    
+                    if (receta.getUsuario() != null) {
+                        Map<String, Object> usuarioDTO = new HashMap<>();
+                        usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+                        usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+                        usuarioDTO.put("mail", receta.getUsuario().getMail());
+                        usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+                        dto.put("usuario", usuarioDTO);
+                    }
+                    
+                    return dto;
+                })
+                .collect(Collectors.toList());
+                
+            return new ResponseEntity<>(recetasDTO, HttpStatus.OK);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
  
@@ -332,6 +385,40 @@ public class Controlador {
 	    return ResponseEntity.ok(recetas);
 	}
 	
+	// Debug endpoint to list all recipe names
+	@GetMapping("/debug/listRecipeNames")
+	public ResponseEntity<List<String>> listAllRecipeNames() {
+	    List<Recetas> allRecetas = recetasRepository.findAll();
+	    List<String> names = allRecetas.stream()
+	        .map(Recetas::getNombreReceta)
+	        .collect(Collectors.toList());
+	    System.out.println("All recipe names in database: " + names);
+	    return ResponseEntity.ok(names);
+	}
+	
+	// Debug endpoint to test search directly
+	@GetMapping("/debug/testSearch")
+	public ResponseEntity<Map<String, Object>> testSearch(@RequestParam String searchTerm) {
+	    Map<String, Object> result = new HashMap<>();
+	    
+	    // Test exact match
+	    List<Recetas> exactMatch = recetasRepository.findByNombreReceta(searchTerm);
+	    result.put("exactMatch", exactMatch.size());
+	    
+	    // Test partial match
+	    List<Recetas> partialMatch = recetasRepository.findByNombreRecetaContainingIgnoreCase(searchTerm);
+	    result.put("partialMatch", partialMatch.size());
+	    
+	    if (!partialMatch.isEmpty()) {
+	        result.put("foundRecipes", partialMatch.stream()
+	            .map(Recetas::getNombreReceta)
+	            .collect(Collectors.toList()));
+	    }
+	    
+	    System.out.println("Search test for '" + searchTerm + "': " + result);
+	    return ResponseEntity.ok(result);
+	}
+	
 	//inscribirse a un curso
 	@PostMapping("/inscripcionCurso")
 	public ResponseEntity<String> inscribirseCurso(@RequestParam int idAlumno, @RequestParam int idCronograma) {
@@ -348,24 +435,69 @@ public class Controlador {
 	
 	//------CONSULTA DE RECETAS----
 	
-	//Nombre
+	//Nombre (supports partial search as per task requirements)
 	@GetMapping("/getNombrereceta")
-	public ResponseEntity<List<Recetas>> consultarRecetaPorNombre(@RequestParam String nombrePlato, @RequestParam(required = false) String orden) {
+	public ResponseEntity<List<Map<String, Object>>> consultarRecetaPorNombre(@RequestParam String nombrePlato, @RequestParam(required = false) String orden) {
+	    System.out.println("Search request for recipe name: '" + nombrePlato + "' with order: '" + orden + "'");
+	    
 	    List<Recetas> recetas;
 	    if (orden != null && orden.equals("nueva")) {
-	        recetas = recetasRepository.findByNombreRecetaOrderByFechaDesc(nombrePlato);
+	        recetas = recetasRepository.findByNombreRecetaContainingIgnoreCaseOrderByFechaDesc(nombrePlato);
+	    } else if (orden != null && orden.equals("usuario")) {
+	        recetas = recetasRepository.findByNombreRecetaContainingIgnoreCaseOrderByUsuario(nombrePlato);
 	    } else {
-	        recetas = recetasRepository.findByNombreRecetaOrderByNombreReceta(nombrePlato);
+	        recetas = recetasRepository.findByNombreRecetaContainingIgnoreCaseOrderByNombreReceta(nombrePlato);
 	    }
+	    
+	    System.out.println("Found " + recetas.size() + " recipes matching '" + nombrePlato + "'");
+	    if (!recetas.isEmpty()) {
+	        System.out.println("First recipe found: " + recetas.get(0).getNombreReceta());
+	    }
+	    
 	    if (recetas.isEmpty()) {
 	        return ResponseEntity.notFound().build();
 	    }
-	    return ResponseEntity.ok(recetas);
+	    
+	    // Convert to DTOs to avoid circular references
+	    List<Map<String, Object>> recetasDTO = recetas.stream()
+	        .map(receta -> {
+	            Map<String, Object> dto = new HashMap<>();
+	            dto.put("idReceta", receta.getIdReceta());
+	            dto.put("nombreReceta", receta.getNombreReceta());
+	            dto.put("descripcionReceta", receta.getDescripcionReceta());
+	            dto.put("fotoPrincipal", receta.getFotoPrincipal());
+	            dto.put("porciones", receta.getPorciones());
+	            dto.put("cantidadPersonas", receta.getCantidadPersonas());
+	            dto.put("fecha", receta.getFecha());
+	            dto.put("autorizada", receta.isAutorizada());
+	            dto.put("instrucciones", receta.getInstrucciones());
+	            
+	            if (receta.getIdTipo() != null) {
+	                Map<String, Object> tipoDTO = new HashMap<>();
+	                tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
+	                tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
+	                dto.put("tipo", tipoDTO);
+	            }
+	            
+	            if (receta.getUsuario() != null) {
+	                Map<String, Object> usuarioDTO = new HashMap<>();
+	                usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+	                usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+	                usuarioDTO.put("mail", receta.getUsuario().getMail());
+	                usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+	                dto.put("usuario", usuarioDTO);
+	            }
+	            
+	            return dto;
+	        })
+	        .collect(Collectors.toList());
+	    
+	    return ResponseEntity.ok(recetasDTO);
 	}
 	
 	//Tipo
 	@GetMapping("/getTiporeceta")
-	public ResponseEntity<List<Recetas>> consultarRecetaPorTipo(@RequestParam TiposReceta tipoPlato, @RequestParam(required = false) String orden) {
+	public ResponseEntity<List<Map<String, Object>>> consultarRecetaPorTipo(@RequestParam TiposReceta tipoPlato, @RequestParam(required = false) String orden) {
 	    List<Recetas> recetas;
 	    if (orden != null && orden.equals("nueva")) {
 	        recetas = recetasRepository.findByIdTipoOrderByFechaDesc(tipoPlato);
@@ -376,52 +508,197 @@ public class Controlador {
 	        return ResponseEntity.notFound().build();
 	    }
 
-	    return ResponseEntity.ok(recetas);
+	    // Convert to DTOs to avoid circular references
+	    List<Map<String, Object>> recetasDTO = recetas.stream()
+	        .map(receta -> {
+	            Map<String, Object> dto = new HashMap<>();
+	            dto.put("idReceta", receta.getIdReceta());
+	            dto.put("nombreReceta", receta.getNombreReceta());
+	            dto.put("descripcionReceta", receta.getDescripcionReceta());
+	            dto.put("fotoPrincipal", receta.getFotoPrincipal());
+	            dto.put("porciones", receta.getPorciones());
+	            dto.put("cantidadPersonas", receta.getCantidadPersonas());
+	            dto.put("fecha", receta.getFecha());
+	            dto.put("autorizada", receta.isAutorizada());
+	            dto.put("instrucciones", receta.getInstrucciones());
+	            
+	            if (receta.getIdTipo() != null) {
+	                Map<String, Object> tipoDTO = new HashMap<>();
+	                tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
+	                tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
+	                dto.put("tipo", tipoDTO);
+	            }
+	            
+	            if (receta.getUsuario() != null) {
+	                Map<String, Object> usuarioDTO = new HashMap<>();
+	                usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+	                usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+	                usuarioDTO.put("mail", receta.getUsuario().getMail());
+	                usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+	                dto.put("usuario", usuarioDTO);
+	            }
+	            
+	            return dto;
+	        })
+	        .collect(Collectors.toList());
+
+	    return ResponseEntity.ok(recetasDTO);
 	}
 	
 	//Ingrediente
 	@GetMapping("/getIngredienteReceta")
-	public ResponseEntity<List<Recetas>> consultarRecetaPorIngrediente(@RequestParam String ingrediente, @RequestParam(required = false) String orden) {
+	public ResponseEntity<List<Map<String, Object>>> consultarRecetaPorIngrediente(@RequestParam String ingrediente, @RequestParam(required = false) String orden) {
 	    List<Recetas> recetas;
 	    if (orden != null && orden.equals("nueva")) {
 	        recetas = recetasRepository.findByIngredientesOrderByFechaDesc(ingrediente);
+	    } else if (orden != null && orden.equals("usuario")) {
+	        recetas = recetasRepository.findByIngredientesOrderByUsuario(ingrediente);
 	    } else {
 	        recetas = recetasRepository.findByIngredientesOrderByIngredientes(ingrediente);
 	    }
 	    if (recetas.isEmpty()) {
 	        return ResponseEntity.notFound().build();
 	    }
-	    return ResponseEntity.ok(recetas);
+	    
+	    // Convert to DTOs to avoid circular references
+	    List<Map<String, Object>> recetasDTO = recetas.stream()
+	        .map(receta -> {
+	            Map<String, Object> dto = new HashMap<>();
+	            dto.put("idReceta", receta.getIdReceta());
+	            dto.put("nombreReceta", receta.getNombreReceta());
+	            dto.put("descripcionReceta", receta.getDescripcionReceta());
+	            dto.put("fotoPrincipal", receta.getFotoPrincipal());
+	            dto.put("porciones", receta.getPorciones());
+	            dto.put("cantidadPersonas", receta.getCantidadPersonas());
+	            dto.put("fecha", receta.getFecha());
+	            dto.put("autorizada", receta.isAutorizada());
+	            dto.put("instrucciones", receta.getInstrucciones());
+	            
+	            if (receta.getIdTipo() != null) {
+	                Map<String, Object> tipoDTO = new HashMap<>();
+	                tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
+	                tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
+	                dto.put("tipo", tipoDTO);
+	            }
+	            
+	            if (receta.getUsuario() != null) {
+	                Map<String, Object> usuarioDTO = new HashMap<>();
+	                usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+	                usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+	                usuarioDTO.put("mail", receta.getUsuario().getMail());
+	                usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+	                dto.put("usuario", usuarioDTO);
+	            }
+	            
+	            return dto;
+	        })
+	        .collect(Collectors.toList());
+	    
+	    return ResponseEntity.ok(recetasDTO);
 	}
 	
 	//No poseen un ingrediente
 	@GetMapping("/getSinIngredienteReceta")
-	public ResponseEntity<List<Recetas>> consultarRecetaSinIngrediente(@RequestParam String ingrediente, @RequestParam(required = false) String orden) {
+	public ResponseEntity<List<Map<String, Object>>> consultarRecetaSinIngrediente(@RequestParam String ingrediente, @RequestParam(required = false) String orden) {
 	    List<Recetas> recetas;
 	    if (orden != null && orden.equals("nueva")) {
 	        recetas = recetasRepository.findBySinIngredientesOrderByFechaDesc(ingrediente);
+	    } else if (orden != null && orden.equals("usuario")) {
+	        recetas = recetasRepository.findBySinIngredientesOrderByUsuario(ingrediente);
 	    } else {
 	        recetas = recetasRepository.findBySinIngredientesOrderByIngredientes(ingrediente);
 	    }
 	    if (recetas.isEmpty()) {
 	        return ResponseEntity.notFound().build();
 	    }
-	    return ResponseEntity.ok(recetas);
+	    
+	    // Convert to DTOs to avoid circular references
+	    List<Map<String, Object>> recetasDTO = recetas.stream()
+	        .map(receta -> {
+	            Map<String, Object> dto = new HashMap<>();
+	            dto.put("idReceta", receta.getIdReceta());
+	            dto.put("nombreReceta", receta.getNombreReceta());
+	            dto.put("descripcionReceta", receta.getDescripcionReceta());
+	            dto.put("fotoPrincipal", receta.getFotoPrincipal());
+	            dto.put("porciones", receta.getPorciones());
+	            dto.put("cantidadPersonas", receta.getCantidadPersonas());
+	            dto.put("fecha", receta.getFecha());
+	            dto.put("autorizada", receta.isAutorizada());
+	            dto.put("instrucciones", receta.getInstrucciones());
+	            
+	            if (receta.getIdTipo() != null) {
+	                Map<String, Object> tipoDTO = new HashMap<>();
+	                tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
+	                tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
+	                dto.put("tipo", tipoDTO);
+	            }
+	            
+	            if (receta.getUsuario() != null) {
+	                Map<String, Object> usuarioDTO = new HashMap<>();
+	                usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+	                usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+	                usuarioDTO.put("mail", receta.getUsuario().getMail());
+	                usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+	                dto.put("usuario", usuarioDTO);
+	            }
+	            
+	            return dto;
+	        })
+	        .collect(Collectors.toList());
+	    
+	    return ResponseEntity.ok(recetasDTO);
 	}
 
-	//Usuario Particular
+	//Usuario Particular (supports partial user name search as per task requirements)
 	@GetMapping("/getUsuarioReceta")
-	public ResponseEntity<List<Recetas>> consultarRecetaPorUsuario(@RequestParam Usuarios usuario, @RequestParam(required = false) String orden) {
+	public ResponseEntity<List<Map<String, Object>>> consultarRecetaPorUsuario(@RequestParam String usuario, @RequestParam(required = false) String orden) {
 	    List<Recetas> recetas;
 	    if (orden != null && orden.equals("nueva")) {
-	        recetas = recetasRepository.findByUsuarioOrderByFechaDesc(usuario);
+	        recetas = recetasRepository.findByUsuarioNombreContainingIgnoreCaseOrderByFechaDesc(usuario);
+	    } else if (orden != null && orden.equals("usuario")) {
+	        recetas = recetasRepository.findByUsuarioNombreContainingIgnoreCaseOrderByUsuario(usuario);
 	    } else {
-	        recetas = recetasRepository.findByUsuarioOrderByFechaDesc(usuario);
+	        recetas = recetasRepository.findByUsuarioNombreContainingIgnoreCaseOrderByNombreReceta(usuario);
 	    }
 	    if (recetas.isEmpty()) {
 	        return ResponseEntity.notFound().build();
 	    }
-	    return ResponseEntity.ok(recetas);
+	    
+	    // Convert to DTOs to avoid circular references
+	    List<Map<String, Object>> recetasDTO = recetas.stream()
+	        .map(receta -> {
+	            Map<String, Object> dto = new HashMap<>();
+	            dto.put("idReceta", receta.getIdReceta());
+	            dto.put("nombreReceta", receta.getNombreReceta());
+	            dto.put("descripcionReceta", receta.getDescripcionReceta());
+	            dto.put("fotoPrincipal", receta.getFotoPrincipal());
+	            dto.put("porciones", receta.getPorciones());
+	            dto.put("cantidadPersonas", receta.getCantidadPersonas());
+	            dto.put("fecha", receta.getFecha());
+	            dto.put("autorizada", receta.isAutorizada());
+	            dto.put("instrucciones", receta.getInstrucciones());
+	            
+	            if (receta.getIdTipo() != null) {
+	                Map<String, Object> tipoDTO = new HashMap<>();
+	                tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
+	                tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
+	                dto.put("tipo", tipoDTO);
+	            }
+	            
+	            if (receta.getUsuario() != null) {
+	                Map<String, Object> usuarioDTO = new HashMap<>();
+	                usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+	                usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+	                usuarioDTO.put("mail", receta.getUsuario().getMail());
+	                usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+	                dto.put("usuario", usuarioDTO);
+	            }
+	            
+	            return dto;
+	        })
+	        .collect(Collectors.toList());
+	    
+	    return ResponseEntity.ok(recetasDTO);
 	}
 
 	
@@ -745,7 +1022,7 @@ public class Controlador {
     
     //Ajustar porciones de recetas
     private Map<Long, List<Recetas>> recetasPersonalizadasPorUsuario = new HashMap<>();
-    @GetMapping("ajustarPorciones/{id}")
+    @GetMapping("/ajustarPorciones/{id}")
     public ResponseEntity<Recetas> ajustarReceta(@PathVariable Integer idReceta,
             @RequestParam String tipo, // "mitad", "doble" o "porciones"
             @RequestParam(required = false) Integer porciones // si es tipo = "porciones"
@@ -781,7 +1058,7 @@ public class Controlador {
         }
     }
     
-    @PostMapping("ajustarPorIngrediente/{id}")
+    @PostMapping("/ajustarPorIngrediente/{id}")
     public ResponseEntity<?> ajustarPorIngrediente(@PathVariable Integer idReceta, @RequestParam String nombreIngrediente, @RequestParam double nuevaCantidad) {
         Optional<Recetas> recetaOpt = recetasDAO.findByIdOptional(idReceta);
         if (recetaOpt.isEmpty()) return ResponseEntity.notFound().build();
@@ -918,6 +1195,118 @@ public class Controlador {
     }
     */
 
+    // Username availability check
+    @GetMapping("/auth/check-username")
+    public ResponseEntity<Map<String, Object>> checkUsernameAvailability(@RequestParam String username) {
+        Map<String, Object> result = new HashMap<>();
+        boolean exists = usuariosRepository.findAll().stream().anyMatch(u -> username.equalsIgnoreCase(u.getNombre()));
+        result.put("available", !exists);
+        if (exists) {
+            List<String> suggestions = new ArrayList<>();
+            String base = username.replaceAll("\\d+$", "");
+            for (int i = 0; i < 3; i++) {
+                suggestions.add(base + (int)(Math.random() * 1000));
+            }
+            suggestions.add(base + LocalDate.now().getYear());
+            result.put("suggestions", suggestions);
+        } else {
+            result.put("suggestions", new ArrayList<>());
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    // Email verification endpoint
+    @PostMapping("/auth/verify-email")
+    public ResponseEntity<Map<String, Object>> verifyEmail(@RequestBody Map<String, String> payload) {
+        String email = payload.get("email");
+        Map<String, Object> result = new HashMap<>();
+        Optional<Usuarios> userOpt = usuariosRepository.findByMail(email);
+        if (userOpt.isPresent()) {
+            Usuarios user = userOpt.get();
+            user.setHabilitado("Si");
+            usuariosRepository.save(user);
+            result.put("success", true);
+        } else {
+            result.put("success", false);
+            result.put("message", "Email not found");
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    // Complete profile endpoint
+    @PutMapping("/usuarios/perfil")
+    public ResponseEntity<Map<String, Object>> completeProfile(@RequestBody Map<String, Object> profileData) {
+        String email = (String) profileData.get("email");
+        Map<String, Object> result = new HashMap<>();
+        Optional<Usuarios> userOpt = usuariosRepository.findByMail(email);
+        if (userOpt.isPresent()) {
+            Usuarios user = userOpt.get();
+            if (profileData.containsKey("nombre")) user.setNombre((String) profileData.get("nombre"));
+            if (profileData.containsKey("direccion")) user.setDireccion((String) profileData.get("direccion"));
+            if (profileData.containsKey("avatar")) user.setAvatar((String) profileData.get("avatar"));
+            if (profileData.containsKey("medioPago")) user.setMedioPago((String) profileData.get("medioPago"));
+            usuariosRepository.save(user);
+            result.put("success", true);
+        } else {
+            result.put("success", false);
+            result.put("message", "User not found");
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    // Endpoint to get user ID by email
+    @GetMapping("/getUsuarioByEmail")
+    public ResponseEntity<Map<String, Object>> getUsuarioByEmail(@RequestParam String mail) {
+        Optional<Usuarios> userOpt = usuariosRepository.findByMail(mail);
+        Map<String, Object> result = new HashMap<>();
+        if (userOpt.isPresent()) {
+            result.put("idUsuario", userOpt.get().getIdUsuario());
+            return ResponseEntity.ok(result);
+        } else {
+            result.put("error", "Usuario no encontrado");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(result);
+        }
+    }
+
+    //---APROBAR RECETA (Solo para administradores/empresa)
+    @PutMapping("/aprobarReceta/{idReceta}")
+    public ResponseEntity<String> aprobarReceta(@PathVariable Integer idReceta, @RequestParam boolean aprobar) {
+        try {
+            Optional<Recetas> recetaOpt = recetasDAO.findByIdOptional(idReceta);
+            if (!recetaOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Recetas receta = recetaOpt.get();
+            receta.setAutorizada(aprobar);
+            recetasDAO.save(receta);
+            
+            String mensaje = aprobar ? "Receta aprobada exitosamente" : "Receta rechazada";
+            return ResponseEntity.ok(mensaje);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al procesar la aprobación de la receta");
+        }
+    }
+
+    //---CREAR USUARIO EMPRESA (Solo para desarrollo/setup inicial)
+    @PostMapping("/crearUsuarioEmpresa")
+    public ResponseEntity<String> crearUsuarioEmpresa(@RequestBody Usuarios usuario) {
+        try {
+            if (usuariosRepository.existsByMail(usuario.getMail())) {
+                return ResponseEntity.badRequest().body("Ya existe un usuario con ese email");
+            }
+            
+            usuario.setTipo("empresa"); // Set user type as company representative
+            usuario.setHabilitado("Si"); // Enable immediately
+            usuariosRepository.save(usuario);
+            
+            return ResponseEntity.ok("Usuario empresa creado exitosamente");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error al crear usuario empresa: " + e.getMessage());
+        }
+    }
 
 }
 

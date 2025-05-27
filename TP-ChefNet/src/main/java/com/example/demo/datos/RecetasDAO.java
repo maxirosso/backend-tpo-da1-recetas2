@@ -50,7 +50,8 @@ public class RecetasDAO {
 	}
 	
 	public List<Recetas> buscarPorNombre(String nombre) {
-	    return recetasRepository.findByNombreReceta(nombre);
+	    // Support partial name search as per task requirements
+	    return recetasRepository.findByNombreRecetaContainingIgnoreCase(nombre);
 	}
 
 	
