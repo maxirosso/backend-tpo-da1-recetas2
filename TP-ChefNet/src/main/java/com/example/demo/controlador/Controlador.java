@@ -156,9 +156,68 @@ public class Controlador {
 	
 	//si tiene conexión se le mostrarán las 3 últimas recetas cargadas por los usuarios
 	@GetMapping("/ultimasRecetas")
-	public ResponseEntity<List<Recetas>> getUltimasRecetas() {
+	public ResponseEntity<List<Map<String, Object>>> getUltimasRecetas() {
 	    List<Recetas> recetas = recetasRepository.findTop3ByOrderByFechaDesc();
-	    return ResponseEntity.ok(recetas);
+	    
+	    // Convert to DTOs to include rating calculations
+	    List<Map<String, Object>> recetasDTO = recetas.stream()
+	        .map(receta -> {
+	            Map<String, Object> dto = new HashMap<>();
+	            dto.put("idReceta", receta.getIdReceta());
+	            dto.put("nombreReceta", receta.getNombreReceta());
+	            dto.put("descripcionReceta", receta.getDescripcionReceta());
+	            dto.put("fotoPrincipal", receta.getFotoPrincipal());
+	            dto.put("porciones", receta.getPorciones());
+	            dto.put("cantidadPersonas", receta.getCantidadPersonas());
+	            dto.put("fecha", receta.getFecha());
+	            dto.put("autorizada", receta.isAutorizada());
+	            dto.put("instrucciones", receta.getInstrucciones());
+	            
+	            // Calcular calificación promedio
+	            List<Calificaciones> calificaciones = calificacionesRepository.findByIdReceta(receta);
+	            if (!calificaciones.isEmpty()) {
+	                double totalRating = calificaciones.stream()
+	                    .filter(cal -> cal != null && cal.getCalificacion() > 0) // Filtrar calificaciones válidas
+	                    .mapToDouble(cal -> cal.getCalificacion())
+	                    .sum();
+	                long validRatingsCount = calificaciones.stream()
+	                    .filter(cal -> cal != null && cal.getCalificacion() > 0)
+	                    .count();
+	                
+	                if (validRatingsCount > 0) {
+	                    double averageRating = totalRating / validRatingsCount;
+	                    dto.put("calificacionPromedio", Math.round(averageRating * 10.0) / 10.0); // Redondear a 1 decimal
+	                } else {
+	                    dto.put("calificacionPromedio", 0.0);
+	                }
+	                dto.put("totalCalificaciones", (int) validRatingsCount);
+	            } else {
+	                dto.put("calificacionPromedio", 0.0);
+	                dto.put("totalCalificaciones", 0);
+	            }
+	            
+	            if (receta.getIdTipo() != null) {
+	                Map<String, Object> tipoDTO = new HashMap<>();
+	                tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
+	                tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
+	                dto.put("tipo", tipoDTO);
+	                dto.put("tipoReceta", tipoDTO); // Agregar también en formato tipoReceta para compatibilidad
+	            }
+	            
+	            if (receta.getUsuario() != null) {
+	                Map<String, Object> usuarioDTO = new HashMap<>();
+	                usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+	                usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+	                usuarioDTO.put("mail", receta.getUsuario().getMail());
+	                usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+	                dto.put("usuario", usuarioDTO);
+	            }
+	            
+	            return dto;
+	        })
+	        .collect(Collectors.toList());
+	    
+	    return ResponseEntity.ok(recetasDTO);
 	}
 	
 	
@@ -301,14 +360,14 @@ public class Controlador {
   
     //Registro de Alumnos
     @PostMapping("/registrarAlumno")
-    public ResponseEntity<String> registrarAlumno(@RequestParam String mail, @RequestParam Integer idUsuario, 
+    public ResponseEntity<String> registrarAlumno(@RequestParam String mail, @RequestParam(required = false) Integer idUsuario, 
                                                   @RequestParam String medioPago, @RequestParam String dniFrente, 
                                                   @RequestParam String dniFondo, @RequestParam String tramite) {
         boolean registrado = alumnosDAO.registrarAlumno(mail, idUsuario, medioPago, dniFrente, dniFondo, tramite);
         if (registrado) {
             return new ResponseEntity<>("Registro como alumno exitoso, se ha enviado un correo para completar el proceso.", HttpStatus.OK);
         }
-        return new ResponseEntity<>("Alias ya registrado o correo ya asociado a otro usuario.", HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>("No se pudo registrar como estudiante. Es posible que el usuario no exista o ya sea un estudiante.", HttpStatus.BAD_REQUEST);
     }
    
     //Cambiar registro a Alumno
@@ -704,7 +763,7 @@ public class Controlador {
 	
 	//Valorar una receta
 	@PostMapping("/valorarReceta/{idReceta}")
-	public ResponseEntity<String> valorarReceta(@PathVariable Integer idReceta, @RequestBody Calificaciones calificacion) {
+	public ResponseEntity<String> valorarReceta(@PathVariable Integer idReceta, @RequestBody Calificaciones calificacion, @RequestParam(required = false) Integer idUsuario) {
 	    // Verificar si la receta existe
 	    Optional<Recetas> recetaOpt = recetasRepository.findById(idReceta);
 	    if (!recetaOpt.isPresent()) {
@@ -714,23 +773,70 @@ public class Controlador {
 	    Recetas receta = recetaOpt.get();
 
 	    // Verificar si el usuario está autenticado
-	    Usuarios usuario = usuariosDAO.getUsuarioAutenticado();
-	    if (usuario == null) {
+	    Usuarios usuarioAutenticado = null;
+	    
+	    // Intentar obtener usuario autenticado primero (para compatibilidad)
+	    try {
+	        usuarioAutenticado = usuariosDAO.getUsuarioAutenticado();
+	    } catch (Exception e) {
+	        // Si falla, intentar usar el idUsuario del parámetro
+	        if (idUsuario != null) {
+	            usuarioAutenticado = usuariosDAO.findById(idUsuario);
+	        }
+	    }
+	    
+	    // Si aún no tenemos usuario, intentar usar el del request body
+	    if (usuarioAutenticado == null && calificacion.getIdusuario() != null) {
+	        usuarioAutenticado = calificacion.getIdusuario();
+	    }
+	    
+	    if (usuarioAutenticado == null) {
 	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debe iniciar sesión para valorar la receta.");
 	    }
 
-	    // Crear la valoración
-	    Calificaciones nuevaCalificacion = new Calificaciones();
-	    nuevaCalificacion.setIdReceta(receta);
-	    nuevaCalificacion.setIdusuario(usuario);
-	    nuevaCalificacion.setCalificacion(calificacion.getCalificacion());
-	    nuevaCalificacion.setComentarios(calificacion.getComentarios());
+	    // Hacer la variable final para uso en stream
+	    final Usuarios usuario = usuarioAutenticado;
 
-	    // Guardar la valoración
-	    calificacionesRepository.save(nuevaCalificacion);
+	    // Buscar si ya existe una valoración del usuario para esta receta
+	    List<Calificaciones> valoracionesExistentes = calificacionesRepository.findByIdReceta(receta);
+	    Optional<Calificaciones> valoracionExistente = valoracionesExistentes.stream()
+	        .filter(v -> v.getIdusuario() != null && v.getIdusuario().getIdUsuario().equals(usuario.getIdUsuario()))
+	        .findFirst();
+	    
+	    Calificaciones valoracionFinal;
+	    
+	    if (valoracionExistente.isPresent()) {
+	        // Actualizar valoración existente
+	        valoracionFinal = valoracionExistente.get();
+	        valoracionFinal.setCalificacion(calificacion.getCalificacion());
+	        
+	        // Solo actualizar comentarios si se proporciona uno nuevo
+	        if (calificacion.getComentarios() != null && !calificacion.getComentarios().trim().isEmpty()) {
+	            valoracionFinal.setComentarios(calificacion.getComentarios());
+	            valoracionFinal.setAutorizado(false); // Requiere nueva moderación si hay comentario
+	        }
+	        
+	        System.out.println("Actualizando valoración existente para usuario " + usuario.getIdUsuario() + " en receta " + idReceta);
+	    } else {
+	        // Crear nueva valoración
+	        valoracionFinal = new Calificaciones();
+	        valoracionFinal.setIdReceta(receta);
+	        valoracionFinal.setIdusuario(usuario);
+	        valoracionFinal.setCalificacion(calificacion.getCalificacion());
+	        valoracionFinal.setComentarios(calificacion.getComentarios());
+	        valoracionFinal.setAutorizado(false); // Por defecto no autorizado, requiere moderación
+	        
+	        System.out.println("Creando nueva valoración para usuario " + usuario.getIdUsuario() + " en receta " + idReceta);
+	    }
 
-	    // Enviar confirmación
-	    return ResponseEntity.ok("Valoración registrada exitosamente.");
+	    // Guardar la valoración (nueva o actualizada)
+	    calificacionesRepository.save(valoracionFinal);
+
+	    String mensaje = valoracionExistente.isPresent() ? 
+	        "Valoración actualizada exitosamente." : 
+	        "Valoración registrada exitosamente.";
+	    
+	    return ResponseEntity.ok(mensaje);
 	}
 	
 	@PutMapping("/autorizarComentario/{idCalificacion}")
@@ -758,13 +864,15 @@ public class Controlador {
 
 	    Recetas receta = recetaOpt.get();
 	    
-	    List<Calificaciones> valoracionesAutorizadas = calificacionesRepository.findByIdRecetaAndAutorizadoTrue(receta);
+	    // Obtener TODAS las valoraciones (autorizadas y no autorizadas) 
+	    // Esto permite que los usuarios vean sus propias valoraciones
+	    List<Calificaciones> todasLasValoraciones = calificacionesRepository.findByIdReceta(receta);
 	    
-	    if (valoracionesAutorizadas.isEmpty()) {
+	    if (todasLasValoraciones.isEmpty()) {
 	        return ResponseEntity.noContent().build();
 	    }
 
-	    return ResponseEntity.ok(valoracionesAutorizadas);
+	    return ResponseEntity.ok(todasLasValoraciones);
 	}
 	
     @Value("${directorio.archivos.recetas}")
@@ -900,11 +1008,35 @@ public class Controlador {
                     dto.put("autorizada", receta.isAutorizada());
                     dto.put("instrucciones", receta.getInstrucciones());
                     
+                    // Calcular calificación promedio
+                    List<Calificaciones> calificaciones = calificacionesRepository.findByIdReceta(receta);
+                    if (!calificaciones.isEmpty()) {
+                        double totalRating = calificaciones.stream()
+                            .filter(cal -> cal != null && cal.getCalificacion() > 0) // Filtrar calificaciones válidas
+                            .mapToDouble(cal -> cal.getCalificacion())
+                            .sum();
+                        long validRatingsCount = calificaciones.stream()
+                            .filter(cal -> cal != null && cal.getCalificacion() > 0)
+                            .count();
+                        
+                        if (validRatingsCount > 0) {
+                            double averageRating = totalRating / validRatingsCount;
+                            dto.put("calificacionPromedio", Math.round(averageRating * 10.0) / 10.0); // Redondear a 1 decimal
+                        } else {
+                            dto.put("calificacionPromedio", 0.0);
+                        }
+                        dto.put("totalCalificaciones", (int) validRatingsCount);
+                    } else {
+                        dto.put("calificacionPromedio", 0.0);
+                        dto.put("totalCalificaciones", 0);
+                    }
+                    
                     if (receta.getIdTipo() != null) {
                         Map<String, Object> tipoDTO = new HashMap<>();
                         tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
                         tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
                         dto.put("tipo", tipoDTO);
+                        dto.put("tipoReceta", tipoDTO); // Agregar también en formato tipoReceta para compatibilidad
                     }
                     
                     if (receta.getUsuario() != null) {
@@ -1022,7 +1154,7 @@ public class Controlador {
     
     //Ajustar porciones de recetas
     private Map<Long, List<Recetas>> recetasPersonalizadasPorUsuario = new HashMap<>();
-    @GetMapping("/ajustarPorciones/{id}")
+    @GetMapping("/ajustarPorciones/{idReceta}")
     public ResponseEntity<Recetas> ajustarReceta(@PathVariable Integer idReceta,
             @RequestParam String tipo, // "mitad", "doble" o "porciones"
             @RequestParam(required = false) Integer porciones // si es tipo = "porciones"
@@ -1058,7 +1190,7 @@ public class Controlador {
         }
     }
     
-    @PostMapping("/ajustarPorIngrediente/{id}")
+    @PostMapping("/ajustarPorIngrediente/{idReceta}")
     public ResponseEntity<?> ajustarPorIngrediente(@PathVariable Integer idReceta, @RequestParam String nombreIngrediente, @RequestParam double nuevaCantidad) {
         Optional<Recetas> recetaOpt = recetasDAO.findByIdOptional(idReceta);
         if (recetaOpt.isEmpty()) return ResponseEntity.notFound().build();
@@ -1305,6 +1437,90 @@ public class Controlador {
             return ResponseEntity.ok("Usuario empresa creado exitosamente");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error al crear usuario empresa: " + e.getMessage());
+        }
+    }
+
+    @PutMapping("/recetas/{idReceta}")
+    public ResponseEntity<String> actualizarReceta(@PathVariable Integer idReceta, @RequestBody Recetas recetaActualizada) {
+        try {
+            System.out.println("=== ACTUALIZANDO RECETA ===");
+            System.out.println("ID Receta: " + idReceta);
+            System.out.println("Usuario en request: " + (recetaActualizada.getUsuario() != null ? recetaActualizada.getUsuario().getIdUsuario() : "NULL"));
+            
+            Optional<Recetas> recetaExistente = recetasRepository.findById(idReceta);
+            
+            if (!recetaExistente.isPresent()) {
+                System.out.println("ERROR: Receta no encontrada con ID: " + idReceta);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Receta no encontrada");
+            }
+            
+            Recetas receta = recetaExistente.get();
+            System.out.println("Receta encontrada: " + receta.getNombreReceta());
+            System.out.println("Propietario actual: " + receta.getUsuario().getIdUsuario());
+            
+            // Verificar que el usuario que intenta editar es el propietario de la receta
+            if (recetaActualizada.getUsuario() == null || recetaActualizada.getUsuario().getIdUsuario() == null) {
+                System.out.println("ERROR: Usuario no proporcionado en el request");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Usuario no proporcionado");
+            }
+            
+            if (!receta.getUsuario().getIdUsuario().equals(recetaActualizada.getUsuario().getIdUsuario())) {
+                System.out.println("ERROR: Usuario no autorizado. Propietario: " + receta.getUsuario().getIdUsuario() + ", Usuario request: " + recetaActualizada.getUsuario().getIdUsuario());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("No tienes permisos para editar esta receta");
+            }
+            
+            System.out.println("Verificación de permisos exitosa");
+            
+            // Actualizar campos de la receta
+            if (recetaActualizada.getNombreReceta() != null && !recetaActualizada.getNombreReceta().trim().isEmpty()) {
+                System.out.println("Actualizando nombre: " + recetaActualizada.getNombreReceta());
+                receta.setNombreReceta(recetaActualizada.getNombreReceta());
+            }
+            if (recetaActualizada.getDescripcionReceta() != null && !recetaActualizada.getDescripcionReceta().trim().isEmpty()) {
+                System.out.println("Actualizando descripción");
+                receta.setDescripcionReceta(recetaActualizada.getDescripcionReceta());
+            }
+            if (recetaActualizada.getFotoPrincipal() != null && !recetaActualizada.getFotoPrincipal().trim().isEmpty()) {
+                System.out.println("Actualizando foto");
+                receta.setFotoPrincipal(recetaActualizada.getFotoPrincipal());
+            }
+            if (recetaActualizada.getPorciones() > 0) {
+                System.out.println("Actualizando porciones: " + recetaActualizada.getPorciones());
+                receta.setPorciones(recetaActualizada.getPorciones());
+            }
+            if (recetaActualizada.getCantidadPersonas() > 0) {
+                System.out.println("Actualizando cantidad personas: " + recetaActualizada.getCantidadPersonas());
+                receta.setCantidadPersonas(recetaActualizada.getCantidadPersonas());
+            }
+            if (recetaActualizada.getInstrucciones() != null && !recetaActualizada.getInstrucciones().trim().isEmpty()) {
+                System.out.println("Actualizando instrucciones");
+                receta.setInstrucciones(recetaActualizada.getInstrucciones());
+            }
+            if (recetaActualizada.getIdTipo() != null) {
+                System.out.println("Actualizando tipo de receta");
+                receta.setIdTipo(recetaActualizada.getIdTipo());
+            }
+            
+            // Marcar como no autorizada para revisión después de la edición
+            receta.setAutorizada(false);
+            
+            // Actualizar fecha de modificación
+            receta.setFecha(LocalDate.now());
+            
+            System.out.println("Guardando receta actualizada...");
+            recetasRepository.save(receta);
+            System.out.println("Receta guardada exitosamente");
+            
+            return ResponseEntity.ok("Receta actualizada exitosamente. Pendiente de aprobación.");
+            
+        } catch (Exception e) {
+            System.out.println("ERROR GENERAL: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al actualizar la receta: " + e.getMessage());
         }
     }
 

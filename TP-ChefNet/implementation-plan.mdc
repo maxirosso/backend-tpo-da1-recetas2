@@ -11,7 +11,7 @@ Added 'nickname' field to Usuarios entity to match frontend payload. Ensured bac
 
 Done
 Updated frontend dataService to properly map backend recipe data structure. Fixed recipe search functionality to use backend endpoints for name, ingredient, and exclude ingredient searches.
-Updated RecipeSearchScreen to use async backend calls instead of local filtering for improved performance and accuracy.
+Updated RecipeSearchScreen to use async backend calls instead of local filtering for improved search accuracy and performance.
 
 Done
 Updated RecipeDetailScreen to use backend APIs for recipe scaling (by portions and by ingredient), recipe rating/review submission, and adding recipes to user's list.
@@ -25,6 +25,19 @@ Done
 Fixed API endpoint paths to match backend controller - removed incorrect leading slashes from scaling endpoints and removed non-existent endpoints.
 Updated dataService to use correct backend endpoints. Fixed user profile methods to use getByEmail instead of getById.
 All frontend API calls now properly map to existing backend Spring Boot endpoints.
+
+Done
+Implemented comprehensive visitor restrictions for ChefNet recipe application.
+Created visitor-specific navigation excluding Add Recipe and Saved Recipes tabs. Added Profile registration prompts for visitors.
+Restricted recipe functionality (scaling, rating, shopping lists, favorites) with registration alerts.
+Added visitor restrictions to course access (no detailed content/enrollment). Added safety checks in AddRecipeScreen and CourseDetailScreen.
+
+Done
+Implemented recipe editing functionality with database persistence.
+Added PUT /recetas/{idReceta} endpoint in backend controller with ownership verification and authorization checking.
+Updated frontend API service with update method. Modified MyRecipesScreen to pass recipe data for editing.
+Enhanced AddRecipeScreen to handle both creation and editing modes with proper data loading and validation.
+Recipe edits require re-approval maintaining content quality control.
 
 ✅ FINAL STATUS: PROJECT READY FOR SUBMISSION
 All task requirements implemented and verified with proper user restrictions:
@@ -43,7 +56,7 @@ All task requirements implemented and verified with proper user restrictions:
 - ✅ Latest 3 recipes on app start (when connected)
 
 **USER TYPE RESTRICTIONS PROPERLY IMPLEMENTED:**
-- ✅ Visitors: Can view recipes & basic course info only
+- ✅ Visitors: Can view recipes & basic course info only (NO creation, scaling, saving, rating)
 - ✅ Regular Users: Full recipe features, limited course access
 - ✅ Students: All features including course enrollment & details
 

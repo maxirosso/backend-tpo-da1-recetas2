@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -53,10 +54,12 @@ public class Recetas {
 	private TiposReceta idTipo;
 	
 	@OneToMany(mappedBy = "idReceta", cascade = CascadeType.ALL)
+	@JsonIgnore
 	private List<Fotos> fotos;
 	
 	@ManyToMany
     @JoinTable(name = "recetas_a_intentar", joinColumns = @JoinColumn(name = "idReceta"), inverseJoinColumns = @JoinColumn(name = "idUsuario"))
+    @JsonIgnore
     private List<Usuarios> usuariosAIntentar;
 	
 	@Column(name = "autorizada")
@@ -65,13 +68,19 @@ public class Recetas {
 	private String instrucciones;
 	
 	@OneToMany(mappedBy = "receta", cascade = CascadeType.ALL, orphanRemoval = true)
+	@JsonIgnore
 	private List<Ingredientes> ingredientes = new ArrayList<>();
 	
     @Column(name = "fecha")
     private LocalDate fecha;
     
     @OneToMany(mappedBy = "receta")
+    @JsonIgnore
     private List<Utilizados> utilizados;
+    
+    @OneToMany(mappedBy = "idReceta")
+    @JsonIgnore
+    private List<Calificaciones> calificaciones;
 	
 	@Transient
 	private MultipartFile[] archivos;
@@ -192,6 +201,14 @@ public class Recetas {
 
 	public void setIngredientes(List<Ingredientes> ingredientes) {
 	    this.ingredientes = ingredientes;
+	}
+	
+	public List<Calificaciones> getCalificaciones() {
+	    return calificaciones;
+	}
+
+	public void setCalificaciones(List<Calificaciones> calificaciones) {
+	    this.calificaciones = calificaciones;
 	}
 	
 	public String getInstrucciones() {

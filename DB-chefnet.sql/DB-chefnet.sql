@@ -76,8 +76,9 @@ create table calificaciones(
 	calificacion int, /*Si no utiliza un valr numerico hay que cambiar el tipo*/
 	comentarios varchar(500),
 	autorizados tinyint DEFAULT (0) null,
-	constraint fk_calificaciones_usuarios foreign key (idUsuario) references usuarios,
-	constraint fk_calificaciones_recetas foreign key (idReceta) references recetas
+	constraint fk_calificaciones_usuarios foreign key (idusuario) references usuarios(idUsuario),
+	constraint fk_calificaciones_recetas foreign key (idReceta) references recetas(idReceta),
+	constraint uk_usuario_receta unique (idusuario, idReceta)
 )
 
 create table conversiones(
@@ -229,7 +230,7 @@ VALUES
 (2, 4, 1, 3, 'Lechuga romana fresca.');
 
 -- Insertar calificaciones
-INSERT INTO calificaciones (idUsuario, idReceta, calificacion, comentarios)
+INSERT INTO calificaciones (idusuario, idReceta, calificacion, comentarios)
 VALUES 
 (3, 1, 5, 'Deliciosa receta, muy bien explicada.'),
 (1, 2, 4, 'Fácil de preparar, pero mejoraría el aderezo.');

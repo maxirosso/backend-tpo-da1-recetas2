@@ -5,8 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.OneToOne;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
@@ -16,17 +16,22 @@ public class Calificaciones {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "idCalificacion")
 	private Integer idCalificacion;
-	@OneToOne
-	@JoinTable(name = "usuarios")
+	
+	@ManyToOne
+	@JoinColumn(name = "idusuario")
 	private Usuarios idusuario;
-	@OneToOne
-	@JoinTable(name = "recetas")
+	
+	@ManyToOne
+	@JoinColumn(name = "idReceta")
 	private Recetas idReceta;
+	
 	@Column(name = "calificacion")
 	private int calificacion;
+	
 	@Column(name = "comentarios")
 	private String comentarios;
-    @Column(name = "autorizado")
+	
+    @Column(name = "autorizados")
     private boolean autorizado = false;
 	
 	public Calificaciones() {}
@@ -38,7 +43,6 @@ public class Calificaciones {
 		this.calificacion = calificacion;
 		this.comentarios = comentarios;
         this.autorizado = autorizado;
-
 	}
 
 	public Integer getIdCalificacion() {
@@ -94,6 +98,4 @@ public class Calificaciones {
 		return "Calificaciones [idCalificacion=" + idCalificacion + ", idusuario=" + idusuario + ", idReceta="
 				+ idReceta + ", calificacion=" + calificacion + ", comentarios=" + comentarios + ", autorizado=" + autorizado + "]";
 	}
-	
-	
 }

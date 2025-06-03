@@ -2,6 +2,8 @@ package com.example.demo.modelo;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -30,9 +32,11 @@ public class Alumnos {
 	private BigDecimal cuentaCorriente;
 	@OneToOne
 	@JoinColumn(name = "idAlumno", referencedColumnName = "idUsuario")
+	@JsonBackReference
 	private Usuarios usuario;
 	@ManyToOne
 	@JoinColumn(name = "idCronograma", referencedColumnName = "idCronograma")
+	@JsonIgnore
 	private CronogramaCursos cronogramaCursos;
 	
 	public Alumnos() {}

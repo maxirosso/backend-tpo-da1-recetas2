@@ -2,6 +2,8 @@ package com.example.demo.modelo;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -32,8 +34,10 @@ public class Usuarios {
 	@Column(name = "avatar")
 	private String avatar;
 	@OneToOne(mappedBy = "usuario")
+	@JsonIgnore
 	private Alumnos alumno;
     @OneToMany(mappedBy = "usuario")
+    @JsonIgnore
     private List<Recetas> recetas;
 
 	@Column(name = "codigo_recuperacion")
@@ -46,6 +50,7 @@ public class Usuarios {
 	private String medioPago;
 	
     @ManyToMany(mappedBy = "usuariosAIntentar")
+    @JsonIgnore
     private List<Recetas> recetasAIntentar;
 
 	@Column(name = "nickname")

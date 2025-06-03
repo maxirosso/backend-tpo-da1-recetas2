@@ -4,6 +4,7 @@ import java.sql.Date;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -37,6 +38,7 @@ public class CronogramaCursos {
 	private int vacantesDisponibles;
 	
 	@OneToMany(mappedBy = "cronogramaCursos")
+	@JsonIgnore
 	private List<Alumnos> alumnos;
 	
 	public CronogramaCursos() {}
