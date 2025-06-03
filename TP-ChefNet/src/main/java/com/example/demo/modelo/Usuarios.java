@@ -56,6 +56,9 @@ public class Usuarios {
 	@Column(name = "nickname")
 	private String nickname;
 
+	@Column(name = "rol")
+	private String rol;
+
 	public Usuarios() {}
 	
 	public Usuarios(Integer idUsuario, String mail, String password, String habilitado, String nombre, String direccion, String avatar){
@@ -180,6 +183,14 @@ public class Usuarios {
 
 	public void setNickname(String nickname) {
 		this.nickname = nickname;
+	}
+
+	public String getRol() {
+		return rol;
+	}
+
+	public void setRol(String rol) {
+		this.rol = rol;
 	}
 
 	@Override

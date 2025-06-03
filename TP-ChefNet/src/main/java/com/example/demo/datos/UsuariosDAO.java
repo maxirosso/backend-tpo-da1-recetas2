@@ -55,6 +55,20 @@ public class UsuariosDAO {
         if (receta.getIdReceta() == null) {
             receta.setAutorizada(false);
         }
+        
+        // Set current date if not provided
+        if (receta.getFecha() == null) {
+            receta.setFecha(java.time.LocalDate.now());
+        }
+        
+        // Handle ingredientes relationship
+        if (receta.getIngredientes() != null && !receta.getIngredientes().isEmpty()) {
+            for (com.example.demo.modelo.Ingredientes ingrediente : receta.getIngredientes()) {
+                // Set the bidirectional relationship
+                ingrediente.setReceta(receta);
+            }
+        }
+        
         return recetasRepository.save(receta);
     }
     

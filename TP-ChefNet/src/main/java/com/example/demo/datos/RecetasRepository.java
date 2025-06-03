@@ -110,4 +110,7 @@ public interface RecetasRepository extends JpaRepository<Recetas, Integer> {
     // Get the 3 most recent recipes
     List<Recetas> findTop3ByOrderByFechaDesc();
 
+    // Get recipes pending approval
+    List<Recetas> findByAutorizadaFalse();
+
 }

@@ -1440,6 +1440,25 @@ public class Controlador {
         }
     }
 
+    //---CREAR USUARIO ADMIN (Solo para desarrollo/setup inicial)
+    @PostMapping("/crearUsuarioAdmin")
+    public ResponseEntity<String> crearUsuarioAdmin(@RequestBody Usuarios usuario) {
+        try {
+            if (usuariosRepository.existsByMail(usuario.getMail())) {
+                return ResponseEntity.badRequest().body("Ya existe un usuario con ese email");
+            }
+            
+            usuario.setTipo("admin"); // Set user type as admin
+            usuario.setRol("admin"); // Set role as admin
+            usuario.setHabilitado("Si"); // Enable immediately
+            usuariosRepository.save(usuario);
+            
+            return ResponseEntity.ok("Usuario admin creado exitosamente");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error al crear usuario admin: " + e.getMessage());
+        }
+    }
+
     @PutMapping("/recetas/{idReceta}")
     public ResponseEntity<String> actualizarReceta(@PathVariable Integer idReceta, @RequestBody Recetas recetaActualizada) {
         try {
@@ -1500,8 +1519,18 @@ public class Controlador {
                 receta.setInstrucciones(recetaActualizada.getInstrucciones());
             }
             if (recetaActualizada.getIdTipo() != null) {
-                System.out.println("Actualizando tipo de receta");
-                receta.setIdTipo(recetaActualizada.getIdTipo());
+                System.out.println("Actualizando tipo de receta - ID recibido: " + recetaActualizada.getIdTipo().getIdTipo());
+                
+                // Validar que el tipo de receta existe en la base de datos
+                Optional<TiposReceta> tipoRecetaExistente = tiposRecetaRepository.findById(recetaActualizada.getIdTipo().getIdTipo());
+                if (!tipoRecetaExistente.isPresent()) {
+                    System.out.println("ERROR: Tipo de receta no válido - ID: " + recetaActualizada.getIdTipo().getIdTipo());
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("El tipo de receta especificado no existe. Use el endpoint /getTiposReceta para obtener los tipos válidos.");
+                }
+                
+                receta.setIdTipo(tipoRecetaExistente.get());
+                System.out.println("Tipo de receta actualizado a: " + tipoRecetaExistente.get().getDescripcion());
             }
             
             // Marcar como no autorizada para revisión después de la edición
@@ -1522,6 +1551,117 @@ public class Controlador {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al actualizar la receta: " + e.getMessage());
         }
+    }
+
+    //---OBTENER TIPOS DE RECETA DISPONIBLES
+    @GetMapping("/getTiposReceta")
+    public ResponseEntity<List<Map<String, Object>>> obtenerTiposReceta() {
+        try {
+            List<TiposReceta> tipos = tiposRecetaRepository.findAll();
+            
+            List<Map<String, Object>> tiposDTO = tipos.stream()
+                .map(tipo -> {
+                    Map<String, Object> dto = new HashMap<>();
+                    dto.put("idTipo", tipo.getIdTipo());
+                    dto.put("descripcion", tipo.getDescripcion());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(tiposDTO);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(null);
+        }
+    }
+
+    //---OBTENER RECETAS PENDIENTES DE APROBACIÓN
+    @GetMapping("/getRecetasPendientesAprobacion")
+    public ResponseEntity<List<Map<String, Object>>> obtenerRecetasPendientesAprobacion() {
+        try {
+            List<Recetas> recetasPendientes = recetasRepository.findByAutorizadaFalse();
+            
+            List<Map<String, Object>> recetasDTO = recetasPendientes.stream()
+                .map(receta -> {
+                    Map<String, Object> dto = new HashMap<>();
+                    dto.put("idReceta", receta.getIdReceta());
+                    dto.put("nombreReceta", receta.getNombreReceta());
+                    dto.put("descripcionReceta", receta.getDescripcionReceta());
+                    dto.put("fotoPrincipal", receta.getFotoPrincipal());
+                    dto.put("porciones", receta.getPorciones());
+                    dto.put("cantidadPersonas", receta.getCantidadPersonas());
+                    dto.put("fecha", receta.getFecha());
+                    dto.put("autorizada", receta.isAutorizada());
+                    dto.put("instrucciones", receta.getInstrucciones());
+                    
+                    // Calcular calificación promedio
+                    List<Calificaciones> calificaciones = calificacionesRepository.findByIdReceta(receta);
+                    if (!calificaciones.isEmpty()) {
+                        double totalRating = calificaciones.stream()
+                            .filter(cal -> cal != null && cal.getCalificacion() > 0) // Filtrar calificaciones válidas
+                            .mapToDouble(cal -> cal.getCalificacion())
+                            .sum();
+                        long validRatingsCount = calificaciones.stream()
+                            .filter(cal -> cal != null && cal.getCalificacion() > 0)
+                            .count();
+                        
+                        if (validRatingsCount > 0) {
+                            double averageRating = totalRating / validRatingsCount;
+                            dto.put("calificacionPromedio", Math.round(averageRating * 10.0) / 10.0); // Redondear a 1 decimal
+                        } else {
+                            dto.put("calificacionPromedio", 0.0);
+                        }
+                        dto.put("totalCalificaciones", (int) validRatingsCount);
+                    } else {
+                        dto.put("calificacionPromedio", 0.0);
+                        dto.put("totalCalificaciones", 0);
+                    }
+                    
+                    if (receta.getIdTipo() != null) {
+                        Map<String, Object> tipoDTO = new HashMap<>();
+                        tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
+                        tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
+                        dto.put("tipo", tipoDTO);
+                        dto.put("tipoReceta", tipoDTO); // Agregar también en formato tipoReceta para compatibilidad
+                    }
+                    
+                    if (receta.getUsuario() != null) {
+                        Map<String, Object> usuarioDTO = new HashMap<>();
+                        usuarioDTO.put("idUsuario", receta.getUsuario().getIdUsuario());
+                        usuarioDTO.put("nombre", receta.getUsuario().getNombre());
+                        usuarioDTO.put("mail", receta.getUsuario().getMail());
+                        usuarioDTO.put("tipo", receta.getUsuario().getTipo());
+                        dto.put("usuario", usuarioDTO);
+                    }
+                    
+                    if (receta.getIngredientes() != null && !receta.getIngredientes().isEmpty()) {
+                        List<Map<String, Object>> ingredientesDTO = receta.getIngredientes().stream()
+                            .map(ingrediente -> {
+                                Map<String, Object> ingDTO = new HashMap<>();
+                                ingDTO.put("idIngrediente", ingrediente.getIdIngrediente());
+                                ingDTO.put("nombre", ingrediente.getNombre());
+                                ingDTO.put("cantidad", ingrediente.getCantidad());
+                                return ingDTO;
+                            })
+                            .collect(Collectors.toList());
+                        dto.put("ingredientes", ingredientesDTO);
+                    }
+                    
+                    return dto;
+                })
+                .collect(Collectors.toList());
+            return new ResponseEntity<>(recetasDTO, HttpStatus.OK);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    //---OBTENER RECETAS PENDIENTES (Alias para compatibilidad con frontend)
+    @GetMapping("/getRecetasPendientes")
+    public ResponseEntity<List<Map<String, Object>>> obtenerRecetasPendientes() {
+        return obtenerRecetasPendientesAprobacion();
     }
 
 }

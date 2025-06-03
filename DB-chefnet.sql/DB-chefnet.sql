@@ -1,18 +1,20 @@
 create database chefnet
 
-create table usuarios(
-	idUsuario int not null identity constraint pk_usuarios primary key,
-	mail varchar(150) unique,
-	nickname varchar(100)  not null,
-	password varchar(40)  not null,
-	habilitado varchar(2) constraint chk_habilitado check (habilitado in ('Si','No')),
-	nombre varchar(150),
-	direccion varchar(150),
-	avatar varchar(300) -- url de la imagen del avatar,
-	tipo varchar(50) null,
-	medio_pago varchar(100) null,
-	codigo_recuperacion varchar(10) null,
-)
+CREATE TABLE usuarios (
+	idUsuario INT NOT NULL IDENTITY CONSTRAINT pk_usuarios PRIMARY KEY,
+	mail VARCHAR(150) UNIQUE,
+	nickname VARCHAR(100) NOT NULL,
+	password VARCHAR(40) NOT NULL,
+	habilitado VARCHAR(2) CONSTRAINT chk_habilitado CHECK (habilitado IN ('Si', 'No')),
+	nombre VARCHAR(150),
+	direccion VARCHAR(150),
+	avatar VARCHAR(300), -- url de la imagen del avatar
+	tipo VARCHAR(50) NULL,
+	medio_pago VARCHAR(100) NULL,
+	codigo_recuperacion VARCHAR(10) NULL,
+	rol VARCHAR(20) null 
+);
+
 
 create table alumnos (
 	idAlumno int not null constraint pk_alumnos primary key,
@@ -41,6 +43,7 @@ create table recetas(
 	cantidadPersonas int,
 	idTipo int,
 	fecha date,
+	autorizada bit default 0, -- 0 = pendiente, 1 = autorizada
 	constraint fk_recetas_usuarios foreign key (idUsuario) references usuarios,
 	constraint fk_recetas_tipos foreign key (idTipo) references tiposReceta
 )
@@ -179,11 +182,11 @@ create table recetas_a_intentar (
 )
 
 -- Insertar usuarios
-INSERT INTO usuarios (mail, nickname, password, habilitado, nombre, direccion, avatar)
+INSERT INTO usuarios (mail, nickname, password, habilitado, nombre, direccion, avatar, rol)
 VALUES 
-('juan.perez@mail.com', 'Juanito', 'password123', 'Si', 'Juan Pérez', 'Calle Falsa 123', 'https://example.com/avatar1.png'),
-('maria.lopez@mail.com', 'MariaL', 'pass456', 'Si', 'María López', 'Av. Siempre Viva 456', 'https://example.com/avatar2.png'),
-('pedro.garcia@mail.com', 'PGarcia', 'pedro789', 'No', 'Pedro García', 'Calle Luna 789', 'https://example.com/avatar3.png');
+('juan.perez@mail.com', 'Juanito', 'password123', 'Si', 'Juan Pérez', 'Calle Falsa 123', 'https://example.com/avatar1.png', 'usuario'),
+('maria.lopez@mail.com', 'MariaL', 'pass456', 'Si', 'María López', 'Av. Siempre Viva 456', 'https://example.com/avatar2.png', 'usuario'),
+('pedro.garcia@mail.com', 'PGarcia', 'pedro789', 'Si', 'Pedro García', 'Calle Luna 789', 'https://example.com/avatar3.png', 'admin');
 
 -- Insertar alumnos
 INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente)
@@ -199,10 +202,13 @@ VALUES
 ('Sopas');
 
 -- Insertar recetas
-INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, fotoPrincipal, porciones, cantidadPersonas, idTipo)
+INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, fotoPrincipal, porciones, cantidadPersonas, idTipo, fecha, autorizada)
 VALUES 
-(1, 'Tarta de Manzana', 'Una deliciosa tarta de manzana con canela.', 'https://example.com/tarta_manzana.png', 8, 4, 1),
-(2, 'Ensalada César', 'Clásica ensalada césar con pollo y aderezo.', 'https://example.com/ensalada_cesar.png', 2, 1, 2);
+(1, 'Tarta de Manzana', 'Una deliciosa tarta de manzana con canela.', 'https://example.com/tarta_manzana.png', 8, 4, 1, '2024-01-15', 1),
+(2, 'Ensalada César', 'Clásica ensalada césar con pollo y aderezo.', 'https://example.com/ensalada_cesar.png', 2, 1, 2, '2024-01-16', 1),
+(1, 'Brownies de Chocolate', 'Brownies húmedos con chispas de chocolate y nueces.', 'https://example.com/brownies.png', 12, 6, 1, '2024-01-20', 0),
+(2, 'Sopa de Tomate', 'Cremosa sopa de tomate con albahaca fresca.', 'https://example.com/sopa_tomate.png', 4, 2, 3, '2024-01-21', 0),
+(1, 'Pizza Margherita', 'Pizza clásica con tomate, mozzarella y albahaca.', 'https://example.com/pizza.png', 4, 2, 1, '2024-01-22', 0);
 
 -- Insertar ingredientes
 INSERT INTO ingredientes (nombre)
