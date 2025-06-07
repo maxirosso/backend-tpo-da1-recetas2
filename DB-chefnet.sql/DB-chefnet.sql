@@ -176,6 +176,9 @@ CREATE TABLE inscripciones (
 create table recetas_a_intentar (
 	idReceta int not null,
 	idUsuario int not null,
+	completada bit default 0,
+	fechaCompletada datetime null,
+	fechaAgregada datetime default getdate(),
 	constraint pk_recetas_a_intentar primary key (idReceta, idUsuario),
 	constraint fk_recetas_a_intentar_recetas foreign key (idReceta) references recetas,
 	constraint fk_recetas_a_intentar_usuarios foreign key (idUsuario) references usuarios
@@ -288,3 +291,29 @@ VALUES
 INSERT INTO asistenciaCursos (idAlumno, idCronograma, fecha)
 VALUES 
 (1, 1, '2025-04-01 10:00:00');
+
+-- Actualizar tabla existente para agregar nuevos campos (ejecutar si la tabla ya existe)
+ALTER TABLE recetas_a_intentar ADD completada bit default 0;
+ALTER TABLE recetas_a_intentar ADD fechaCompletada datetime null;
+ALTER TABLE recetas_a_intentar ADD fechaAgregada datetime default getdate();
+
+-- Insertar datos de prueba en recetas_a_intentar
+INSERT INTO recetas_a_intentar (idReceta, idUsuario, completada, fechaCompletada, fechaAgregada)
+VALUES 
+(1, 1, 0, null, getdate()),  -- Juan quiere intentar la Tarta de Manzana
+(2, 1, 1, '2024-01-25', '2024-01-20'),  -- Juan completó la Ensalada César
+(1, 2, 0, null, getdate());  -- María quiere intentar la Tarta de Manzana
+
+-- SCRIPT DE LIMPIEZA PARA SOLUCIONAR PROBLEMA DE RECETAS QUE SE AGREGAN COMO COMPLETADAS
+-- Ejecutar este script si las recetas nuevas aparecen como completadas incorrectamente:
+
+-- 1. Limpiar todos los datos de recetas_a_intentar para empezar limpio
+-- DELETE FROM recetas_a_intentar;
+
+-- 2. Verificar que no hay datos residuales
+-- SELECT * FROM recetas_a_intentar;
+
+-- 3. Reiniciar y verificar que las nuevas recetas se agregan como pendientes (completada = 0)
+-- Después de ejecutar la limpieza, las nuevas recetas agregadas desde la app deberían aparecer como pendientes
+
+-- NOTA: Solo ejecutar la limpieza si hay problemas con recetas que aparecen como completadas incorrectamente

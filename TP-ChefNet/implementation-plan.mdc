@@ -4,6 +4,10 @@ globs:
 alwaysApply: false
 ---
 Done
+Implemented splash screen for ChefNet app matching the provided design with teal background, chef hat icon, and "Chef Net C" branding.
+Created SplashScreen component with custom chef hat icon using positioned white circles and integrated 3-second display timer in main App.js.
+
+Done
 Implemented /auth/check-username, /auth/verify-email, and /usuarios/perfil endpoints in Controlador.java to resolve 404 errors and match frontend expectations.
 Updated frontend to use correct backend endpoints and payloads. Added /getUsuarioByEmail endpoint to backend for student registration flow.
 Enforced non-empty nickname in frontend registration. Prevented NULL nickname errors in backend and DB.
@@ -38,6 +42,13 @@ Added PUT /recetas/{idReceta} endpoint in backend controller with ownership veri
 Updated frontend API service with update method. Modified MyRecipesScreen to pass recipe data for editing.
 Enhanced AddRecipeScreen to handle both creation and editing modes with proper data loading and validation.
 Recipe edits require re-approval maintaining content quality control.
+
+Done
+Added 'rol' column to Usuarios entity with getter/setter methods.
+Created /getRecetasPendientes endpoint to retrieve recipes pending approval and /crearUsuarioAdmin endpoint for creating admin users.
+Implemented RecipeApprovalScreen component with approval/rejection functionality and proper error handling.
+Updated AuthContext with isAdmin() method and added admin-only tab in AppNavigator with shield icon.
+Enhanced API service with putForm method and corresponding dataService methods for admin functionality.
 
 ✅ FINAL STATUS: PROJECT READY FOR SUBMISSION
 All task requirements implemented and verified with proper user restrictions:

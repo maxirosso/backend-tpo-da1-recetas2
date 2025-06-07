@@ -31,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.example.demo.datos.*;
 import com.example.demo.modelo.Alumnos;
+import com.example.demo.modelo.RecetasAIntentar;
 import com.example.demo.modelo.Calificaciones;
 import com.example.demo.modelo.CronogramaCursos;
 import com.example.demo.modelo.Cursos;
@@ -137,6 +138,9 @@ public class Controlador {
 	InscripcionRepository inscripcionRepository;
 	@Autowired
 	InscripcionDAO inscripcionDAO;
+	
+	@Autowired
+	RecetasAIntentarRepository recetasAIntentarRepository;
 	
 	
 	@GetMapping("/")
@@ -1114,42 +1118,260 @@ public class Controlador {
         return ResponseEntity.ok(dto);
     }
 
-    // Agregar Receta a la lista de recetas seleccionadas
+    // Agregar Receta a la lista de recetas a intentar (usando base de datos)
     @PostMapping("/agregarReceta/{idReceta}")
-    public ResponseEntity<String> agregarReceta(@PathVariable Integer idReceta, WebRequest request) {
-        Optional<Recetas> recetaOptional = recetasRepository.findById(idReceta);
-        if (recetaOptional.isPresent()) {
-            Recetas receta = recetaOptional.get();
-            List<Recetas> listaRecetasSeleccionadas = getListaRecetasSeleccionadas(request);
-            listaRecetasSeleccionadas.add(receta);
-            return new ResponseEntity<>("Receta agregada a tu lista", HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>("Receta no encontrada", HttpStatus.NOT_FOUND);
-        }
-    }
-
-    // Eliminar una receta de la lista de recetas seleccionadas
-    @DeleteMapping("/eliminarReceta/{idReceta}")
-    public ResponseEntity<String> eliminarReceta(@PathVariable Integer idReceta, WebRequest request) {
-        Optional<Recetas> recetaOptional = recetasRepository.findById(idReceta);
-        if (recetaOptional.isPresent()) {
-            Recetas receta = recetaOptional.get();
-            List<Recetas> listaRecetasSeleccionadas = getListaRecetasSeleccionadas(request);
-            if (listaRecetasSeleccionadas.remove(receta)) {
-                return new ResponseEntity<>("Receta eliminada de tu lista", HttpStatus.OK);
-            } else {
-                return new ResponseEntity<>("Receta no encontrada en tu lista", HttpStatus.NOT_FOUND);
+    public ResponseEntity<String> agregarReceta(@PathVariable Integer idReceta, @RequestParam(required = false) Integer idUsuario, WebRequest request) {
+        try {
+            System.out.println("🔄 Backend: Attempting to add recipe " + idReceta + " for user " + idUsuario);
+            
+            Optional<Recetas> recetaOptional = recetasRepository.findById(idReceta);
+            if (!recetaOptional.isPresent()) {
+                System.out.println("❌ Backend: Recipe " + idReceta + " not found");
+                return new ResponseEntity<>("Receta no encontrada", HttpStatus.NOT_FOUND);
             }
-        } else {
-            return new ResponseEntity<>("Receta no encontrada", HttpStatus.NOT_FOUND);
+            
+            Recetas receta = recetaOptional.get();
+            System.out.println("✅ Backend: Found recipe: " + receta.getNombreReceta());
+            
+            // Intentar obtener usuario autenticado o usar el parámetro
+            Usuarios usuario = null;
+            if (idUsuario != null) {
+                usuario = usuariosDAO.findById(idUsuario);
+            } else {
+                usuario = usuariosDAO.getUsuarioAutenticado();
+            }
+            
+            if (usuario == null) {
+                // Fallback a la sesión si no hay usuario autenticado
+                List<Recetas> listaRecetasSeleccionadas = getListaRecetasSeleccionadas(request);
+                if (!listaRecetasSeleccionadas.contains(receta)) {
+                    listaRecetasSeleccionadas.add(receta);
+                    return new ResponseEntity<>("Receta agregada a tu lista temporal", HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<>("La receta ya está en tu lista", HttpStatus.BAD_REQUEST);
+                }
+            }
+            
+            // Usar la nueva tabla recetas_a_intentar
+            boolean alreadyExists = recetasAIntentarRepository.existsByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario());
+            
+            System.out.println("🔍 Backend: User " + usuario.getIdUsuario() + " - Recipe " + idReceta + " already exists: " + alreadyExists);
+            
+            if (!alreadyExists) {
+                try {
+                    RecetasAIntentar nuevaRecetaIntentar = new RecetasAIntentar(idReceta, usuario.getIdUsuario());
+                    System.out.println("🔍 Backend: Creating new RecetasAIntentar - idReceta: " + nuevaRecetaIntentar.getIdReceta() + 
+                                     ", idUsuario: " + nuevaRecetaIntentar.getIdUsuario() + 
+                                     ", completada: " + nuevaRecetaIntentar.getCompletada() + 
+                                     ", fechaAgregada: " + nuevaRecetaIntentar.getFechaAgregada());
+                    
+                    RecetasAIntentar savedReceta = recetasAIntentarRepository.save(nuevaRecetaIntentar);
+                    
+                    System.out.println("🔍 Backend: Saved RecetasAIntentar - idReceta: " + savedReceta.getIdReceta() + 
+                                     ", idUsuario: " + savedReceta.getIdUsuario() + 
+                                     ", completada: " + savedReceta.getCompletada() + 
+                                     ", fechaAgregada: " + savedReceta.getFechaAgregada());
+                    
+                    System.out.println("✅ Backend: Recipe " + idReceta + " successfully added to user " + usuario.getIdUsuario() + " list as PENDING");
+                    return new ResponseEntity<>("Receta agregada a tu lista de pendientes", HttpStatus.OK);
+                } catch (Exception e) {
+                    // Si hay error de constraint (duplicado en BD), manejarlo
+                    System.out.println("❌ Backend: Error adding recipe: " + e.getMessage());
+                    if (e.getMessage().contains("constraint") || e.getMessage().contains("duplicate")) {
+                        return new ResponseEntity<>("La receta ya está en tu lista de pendientes", HttpStatus.BAD_REQUEST);
+                    }
+                    throw e; // Re-lanzar si es otro tipo de error
+                }
+            } else {
+                System.out.println("❌ Backend: Recipe " + idReceta + " already exists in user " + usuario.getIdUsuario() + " list");
+                return new ResponseEntity<>("La receta ya está en tu lista de pendientes", HttpStatus.BAD_REQUEST);
+            }
+            
+        } catch (Exception e) {
+            return new ResponseEntity<>("Error al agregar receta: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    // Obtener la lista de recetas seleccionadas
+    // Eliminar una receta de la lista de recetas a intentar
+    @DeleteMapping("/eliminarReceta/{idReceta}")
+    public ResponseEntity<String> eliminarReceta(@PathVariable Integer idReceta, @RequestParam(required = false) Integer idUsuario, WebRequest request) {
+        try {
+            Optional<Recetas> recetaOptional = recetasRepository.findById(idReceta);
+            if (!recetaOptional.isPresent()) {
+                return new ResponseEntity<>("Receta no encontrada", HttpStatus.NOT_FOUND);
+            }
+            
+            Recetas receta = recetaOptional.get();
+            
+            // Intentar obtener usuario autenticado o usar el parámetro
+            Usuarios usuario = null;
+            if (idUsuario != null) {
+                usuario = usuariosDAO.findById(idUsuario);
+            } else {
+                usuario = usuariosDAO.getUsuarioAutenticado();
+            }
+            
+            if (usuario == null) {
+                // Fallback a la sesión si no hay usuario autenticado
+                List<Recetas> listaRecetasSeleccionadas = getListaRecetasSeleccionadas(request);
+                if (listaRecetasSeleccionadas.remove(receta)) {
+                    return new ResponseEntity<>("Receta eliminada de tu lista temporal", HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<>("Receta no encontrada en tu lista", HttpStatus.NOT_FOUND);
+                }
+            }
+            
+            // Usar la nueva tabla recetas_a_intentar
+            boolean exists = recetasAIntentarRepository.existsByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario());
+            if (exists) {
+                recetasAIntentarRepository.deleteByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario());
+                return new ResponseEntity<>("Receta eliminada de tu lista de pendientes", HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>("Receta no encontrada en tu lista de pendientes", HttpStatus.NOT_FOUND);
+            }
+            
+        } catch (Exception e) {
+            return new ResponseEntity<>("Error al eliminar receta: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // Obtener la lista de recetas a intentar
     @GetMapping("/getMiListaRecetas")
-    public ResponseEntity<List<Recetas>> obtenerMiListaDeRecetas(WebRequest request) {
-        List<Recetas> listaRecetasSeleccionadas = getListaRecetasSeleccionadas(request);
-        return new ResponseEntity<>(listaRecetasSeleccionadas, HttpStatus.OK);
+    public ResponseEntity<List<Map<String, Object>>> obtenerMiListaDeRecetas(@RequestParam(required = false) Integer idUsuario, WebRequest request) {
+        try {
+            // Intentar obtener usuario autenticado o usar el parámetro
+            Usuarios usuario = null;
+            if (idUsuario != null) {
+                usuario = usuariosDAO.findById(idUsuario);
+            } else {
+                usuario = usuariosDAO.getUsuarioAutenticado();
+            }
+            
+            List<Map<String, Object>> recetasDTO = new ArrayList<>();
+            
+            if (usuario == null) {
+                // Fallback a la sesión si no hay usuario autenticado
+                List<Recetas> recetas = getListaRecetasSeleccionadas(request);
+                for (Recetas receta : recetas) {
+                    Map<String, Object> dto = createRecipeDTO(receta, false, null, null);
+                    recetasDTO.add(dto);
+                }
+            } else {
+                // Usar la nueva tabla recetas_a_intentar
+                List<RecetasAIntentar> recetasAIntentar = recetasAIntentarRepository.findByIdUsuarioWithRecetaDetails(usuario.getIdUsuario());
+                
+                for (RecetasAIntentar recetaIntentar : recetasAIntentar) {
+                    Recetas receta = recetaIntentar.getReceta();
+                    if (receta != null) {
+                        Map<String, Object> dto = createRecipeDTO(receta, recetaIntentar.getCompletada(), 
+                                                                  recetaIntentar.getFechaCompletada(), 
+                                                                  recetaIntentar.getFechaAgregada());
+                        recetasDTO.add(dto);
+                    }
+                }
+            }
+            
+            return new ResponseEntity<>(recetasDTO, HttpStatus.OK);
+            
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ArrayList<>(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    
+    // Helper method to create recipe DTO
+    private Map<String, Object> createRecipeDTO(Recetas receta, Boolean completada, java.util.Date fechaCompletada, java.util.Date fechaAgregada) {
+        Map<String, Object> dto = new HashMap<>();
+        dto.put("idReceta", receta.getIdReceta());
+        dto.put("nombreReceta", receta.getNombreReceta());
+        dto.put("descripcionReceta", receta.getDescripcionReceta());
+        dto.put("fotoPrincipal", receta.getFotoPrincipal());
+        dto.put("porciones", receta.getPorciones());
+        dto.put("cantidadPersonas", receta.getCantidadPersonas());
+        dto.put("fecha", receta.getFecha());
+        dto.put("autorizada", receta.isAutorizada());
+        
+        // Agregar estados de la lista de recetas a intentar
+        dto.put("completada", completada != null ? completada : false);
+        dto.put("fechaCompletada", fechaCompletada);
+        dto.put("fechaAgregada", fechaAgregada);
+        
+        // Agregar información del tipo
+        if (receta.getIdTipo() != null) {
+            Map<String, Object> tipo = new HashMap<>();
+            tipo.put("idTipo", receta.getIdTipo().getIdTipo());
+            tipo.put("descripcion", receta.getIdTipo().getDescripcion());
+            dto.put("tipoReceta", tipo);
+        }
+        
+        // Agregar información del usuario
+        if (receta.getUsuario() != null) {
+            Map<String, Object> usuarioMap = new HashMap<>();
+            usuarioMap.put("idUsuario", receta.getUsuario().getIdUsuario());
+            usuarioMap.put("nombre", receta.getUsuario().getNombre());
+            usuarioMap.put("nickname", receta.getUsuario().getNickname());
+            usuarioMap.put("mail", receta.getUsuario().getMail());
+            dto.put("usuario", usuarioMap);
+        }
+        
+        return dto;
+    }
+    
+    // Marcar receta como completada/pendiente
+    @PutMapping("/marcarRecetaCompletada/{idReceta}")
+    public ResponseEntity<String> marcarRecetaCompletada(
+        @PathVariable Integer idReceta, 
+        @RequestParam boolean completada,
+        @RequestParam(required = false) Integer idUsuario, 
+        WebRequest request) {
+        try {
+            System.out.println("🔄 Backend: Marking recipe " + idReceta + " as " + (completada ? "completed" : "pending") + " for user " + idUsuario);
+            
+            // Intentar obtener usuario autenticado o usar el parámetro
+            Usuarios usuario = null;
+            if (idUsuario != null) {
+                usuario = usuariosDAO.findById(idUsuario);
+            } else {
+                usuario = usuariosDAO.getUsuarioAutenticado();
+            }
+            
+            if (usuario == null) {
+                return new ResponseEntity<>("Usuario no encontrado", HttpStatus.NOT_FOUND);
+            }
+            
+            // Buscar o crear el registro en recetas_a_intentar
+            Optional<RecetasAIntentar> recetaIntentarOpt = recetasAIntentarRepository.findByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario());
+            
+            if (recetaIntentarOpt.isPresent()) {
+                // Actualizar el estado existente
+                RecetasAIntentar recetaIntentar = recetaIntentarOpt.get();
+                recetaIntentar.setCompletada(completada);
+                recetasAIntentarRepository.save(recetaIntentar);
+                
+                System.out.println("✅ Backend: Recipe " + idReceta + " marked as " + (completada ? "completed" : "pending") + " for user " + usuario.getIdUsuario());
+                return new ResponseEntity<>(completada ? "Receta marcada como completada" : "Receta marcada como pendiente", HttpStatus.OK);
+            } else {
+                // Si no existe, crear nuevo registro (solo si se está marcando como completada)
+                if (completada) {
+                    // Verificar que la receta existe
+                    Optional<Recetas> recetaOpt = recetasRepository.findById(idReceta);
+                    if (!recetaOpt.isPresent()) {
+                        return new ResponseEntity<>("Receta no encontrada", HttpStatus.NOT_FOUND);
+                    }
+                    
+                    RecetasAIntentar nuevaRecetaIntentar = new RecetasAIntentar(idReceta, usuario.getIdUsuario(), true, new java.util.Date());
+                    recetasAIntentarRepository.save(nuevaRecetaIntentar);
+                    
+                    System.out.println("✅ Backend: New recipe " + idReceta + " added and marked as completed for user " + usuario.getIdUsuario());
+                    return new ResponseEntity<>("Receta agregada y marcada como completada", HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<>("No se puede marcar como pendiente una receta que no está en la lista", HttpStatus.BAD_REQUEST);
+                }
+            }
+            
+        } catch (Exception e) {
+            System.out.println("❌ Backend: Error marking recipe completion: " + e.getMessage());
+            return new ResponseEntity<>("Error al marcar receta: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
     
     //Ajustar porciones de recetas
