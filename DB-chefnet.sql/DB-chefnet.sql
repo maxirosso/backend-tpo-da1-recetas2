@@ -48,12 +48,15 @@ create table recetas(
 	constraint fk_recetas_tipos foreign key (idTipo) references tiposReceta
 )
 
-create table ingredientes( /* Esta tabla tiene los ingredientes que el usuario utiliza para cargar la receta, si el ingrediente no esta puede cargarlo - Esos ingredientes se validan cuando se aprueba la receta */
-	idIngrediente int not null identity constraint pk_ingredientes primary key,
-	nombre varchar(200),
-	cantidad FLOAT,
-	unidadMedida VARCHAR(50);
-)
+CREATE TABLE ingredientes (
+    idIngrediente INT PRIMARY KEY NOT NULL,
+    nombre VARCHAR(255) NULL,
+    cantidad FLOAT NULL,
+    unidadMedida VARCHAR(255) NULL,
+    id_receta INT NULL,
+    FOREIGN KEY (id_receta) REFERENCES receta(idReceta)
+);
+
 
 create table unidades(
 	idUnidad int not null identity constraint pk_unidades primary key,
@@ -304,16 +307,4 @@ VALUES
 (2, 1, 1, '2024-01-25', '2024-01-20'),  -- Juan completó la Ensalada César
 (1, 2, 0, null, getdate());  -- María quiere intentar la Tarta de Manzana
 
--- SCRIPT DE LIMPIEZA PARA SOLUCIONAR PROBLEMA DE RECETAS QUE SE AGREGAN COMO COMPLETADAS
--- Ejecutar este script si las recetas nuevas aparecen como completadas incorrectamente:
 
--- 1. Limpiar todos los datos de recetas_a_intentar para empezar limpio
--- DELETE FROM recetas_a_intentar;
-
--- 2. Verificar que no hay datos residuales
--- SELECT * FROM recetas_a_intentar;
-
--- 3. Reiniciar y verificar que las nuevas recetas se agregan como pendientes (completada = 0)
--- Después de ejecutar la limpieza, las nuevas recetas agregadas desde la app deberían aparecer como pendientes
-
--- NOTA: Solo ejecutar la limpieza si hay problemas con recetas que aparecen como completadas incorrectamente
