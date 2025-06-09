@@ -336,8 +336,20 @@ public class Controlador {
     //Cargar nuevas recetas
     @PostMapping("/CargarNuevasRecetas")
     public ResponseEntity<Recetas> cargarNuevasRecetas(@RequestBody Recetas receta) {
-        Recetas recetaGuardada = usuariosDAO.cargarReceta(receta);
-        return new ResponseEntity<>(recetaGuardada, HttpStatus.CREATED);
+        try {
+            // Asegurar que cada ingrediente tenga la referencia a la receta
+            if (receta.getIngredientes() != null && !receta.getIngredientes().isEmpty()) {
+                receta.getIngredientes().forEach(ingrediente -> {
+                    ingrediente.setReceta(receta);
+                });
+            }
+            
+            Recetas recetaGuardada = usuariosDAO.cargarReceta(receta);
+            return new ResponseEntity<>(recetaGuardada, HttpStatus.CREATED);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
     
     
@@ -415,9 +427,22 @@ public class Controlador {
 	@PostMapping("/publicarRecetas")
 	public ResponseEntity<String> publicarReceta(@RequestBody Recetas recetas) {
         try {
+            // Asegurar que cada ingrediente tenga la referencia a la receta
+            if (recetas.getIngredientes() != null && !recetas.getIngredientes().isEmpty()) {
+                recetas.getIngredientes().forEach(ingrediente -> {
+                    ingrediente.setReceta(recetas);
+                });
+            }
+            
+            // Establecer fecha actual si no está definida
+            if (recetas.getFecha() == null) {
+                recetas.setFecha(java.time.LocalDate.now());
+            }
+            
             recetasDAO.save(recetas);
             return ResponseEntity.ok("Receta publicada exitosamente");
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().body("Error al publicar la receta: " + e.getMessage());
         }
 	}
@@ -900,31 +925,49 @@ public class Controlador {
     //Cargar receta
     @PostMapping("/cargarReceta")
     public ResponseEntity<String> cargarReceta(@ModelAttribute Recetas receta, @RequestParam("archivos") MultipartFile[] archivos) {
-        Usuarios usuario = usuariosDAO.getUsuarioAutenticado();
-        
-        if (usuario == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debe iniciar sesión para cargar una receta.");
-        }
-
-        Optional<Recetas> recetaExistente = recetasDAO.buscarPorNombreYUsuario(receta.getNombreReceta(), usuario);
-        if (recetaExistente.isPresent()) {
-            boolean reemplazar = preguntarSiReemplazar(); 
-            if (reemplazar) {
-                recetasDAO.eliminarReceta(recetaExistente.get());  // Reemplazar la receta
-            } else {
-                // Permitir editar la receta existente
-                receta.setIdReceta(recetaExistente.get().getIdReceta());
+        try {
+            Usuarios usuario = usuariosDAO.getUsuarioAutenticado();
+            
+            if (usuario == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debe iniciar sesión para cargar una receta.");
             }
+
+            Optional<Recetas> recetaExistente = recetasDAO.buscarPorNombreYUsuario(receta.getNombreReceta(), usuario);
+            if (recetaExistente.isPresent()) {
+                boolean reemplazar = preguntarSiReemplazar(); 
+                if (reemplazar) {
+                    recetasDAO.eliminarReceta(recetaExistente.get());  // Reemplazar la receta
+                } else {
+                    // Permitir editar la receta existente
+                    receta.setIdReceta(recetaExistente.get().getIdReceta());
+                }
+            }
+
+            // Configurar la receta, siempre con autorización pendiente
+            receta.setUsuario(usuario);
+            receta.setAutorizada(false);
+            
+            // Establecer fecha actual si no está definida
+            if (receta.getFecha() == null) {
+                receta.setFecha(java.time.LocalDate.now());
+            }
+            
+            // Asegurar que cada ingrediente tenga la referencia a la receta
+            if (receta.getIngredientes() != null && !receta.getIngredientes().isEmpty()) {
+                receta.getIngredientes().forEach(ingrediente -> {
+                    ingrediente.setReceta(receta);
+                });
+            }
+
+            recetasDAO.save(receta);
+            guardarArchivosDeReceta(archivos, receta);
+
+            return ResponseEntity.ok("Receta cargada exitosamente y pendiente de autorización.");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al cargar la receta: " + e.getMessage());
         }
-
-        // Configurar la receta, siempre con autorización pendiente
-        receta.setUsuario(usuario);
-        receta.setAutorizada(false);
-
-        recetasDAO.save(receta);
-        guardarArchivosDeReceta(archivos, receta);
-
-        return ResponseEntity.ok("Receta cargada exitosamente y pendiente de autorización.");
     }
 
     // Método que guarda los archivos asociados a la receta
@@ -1819,11 +1862,34 @@ public class Controlador {
                 System.out.println("Tipo de receta actualizado a: " + tipoRecetaExistente.get().getDescripcion());
             }
             
+            // Actualizar ingredientes si se proporcionan
+            if (recetaActualizada.getIngredientes() != null && !recetaActualizada.getIngredientes().isEmpty()) {
+                System.out.println("Actualizando ingredientes: " + recetaActualizada.getIngredientes().size() + " ingredientes recibidos");
+                
+                // Eliminar ingredientes existentes
+                List<Ingredientes> ingredientesExistentes = receta.getIngredientes();
+                if (ingredientesExistentes != null && !ingredientesExistentes.isEmpty()) {
+                    for (Ingredientes ing : ingredientesExistentes) {
+                        ingredientesRepository.delete(ing);
+                    }
+                    receta.setIngredientes(new ArrayList<>());
+                }
+                
+                // Añadir nuevos ingredientes
+                for (Ingredientes ingrediente : recetaActualizada.getIngredientes()) {
+                    ingrediente.setReceta(receta);
+                    ingredientesRepository.save(ingrediente);
+                    receta.getIngredientes().add(ingrediente);
+                }
+                
+                System.out.println("Ingredientes actualizados correctamente");
+            }
+            
             // Marcar como no autorizada para revisión después de la edición
             receta.setAutorizada(false);
             
             // Actualizar fecha de modificación
-            receta.setFecha(LocalDate.now());
+            receta.setFecha(java.time.LocalDate.now());
             
             System.out.println("Guardando receta actualizada...");
             recetasRepository.save(receta);
@@ -1949,6 +2015,226 @@ public class Controlador {
     @GetMapping("/getRecetasPendientes")
     public ResponseEntity<List<Map<String, Object>>> obtenerRecetasPendientes() {
         return obtenerRecetasPendientesAprobacion();
+    }
+
+    //Añadir ingredientes a una receta existente
+    @PostMapping("/recetas/{idReceta}/ingredientes")
+    public ResponseEntity<?> agregarIngredientesAReceta(
+            @PathVariable Integer idReceta,
+            @RequestBody List<Ingredientes> ingredientes) {
+        try {
+            Optional<Recetas> recetaOpt = recetasRepository.findById(idReceta);
+            if (!recetaOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Recetas receta = recetaOpt.get();
+            
+            // Verificar que el usuario actual sea el propietario de la receta
+            Usuarios usuarioActual = usuariosDAO.getUsuarioAutenticado();
+            if (usuarioActual == null || !receta.getUsuario().getIdUsuario().equals(usuarioActual.getIdUsuario())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("No tienes permiso para modificar esta receta");
+            }
+            
+            // Establecer la referencia a la receta en cada ingrediente
+            for (Ingredientes ingrediente : ingredientes) {
+                ingrediente.setReceta(receta);
+                ingredientesRepository.save(ingrediente);
+            }
+            
+            // Actualizar la lista de ingredientes de la receta
+            List<Ingredientes> ingredientesActuales = receta.getIngredientes();
+            if (ingredientesActuales == null) {
+                ingredientesActuales = new ArrayList<>();
+            }
+            ingredientesActuales.addAll(ingredientes);
+            receta.setIngredientes(ingredientesActuales);
+            
+            // Guardar la receta actualizada
+            recetasRepository.save(receta);
+            
+            return ResponseEntity.ok().body("Ingredientes agregados correctamente");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error al agregar ingredientes: " + e.getMessage());
+        }
+    }
+
+    //Obtener todos los ingredientes disponibles
+    @GetMapping("/ingredientes")
+    public ResponseEntity<List<Map<String, Object>>> obtenerTodosLosIngredientes() {
+        try {
+            List<Ingredientes> ingredientes = ingredientesRepository.findAll();
+            
+            // Convertir a DTO para evitar referencias circulares
+            List<Map<String, Object>> ingredientesDTO = ingredientes.stream()
+                .map(ingrediente -> {
+                    Map<String, Object> dto = new HashMap<>();
+                    dto.put("idIngrediente", ingrediente.getIdIngrediente());
+                    dto.put("nombre", ingrediente.getNombre());
+                    dto.put("cantidad", ingrediente.getCantidad());
+                    dto.put("unidadMedida", ingrediente.getUnidadMedida());
+                    
+                    // Incluir referencia mínima a la receta si existe
+                    if (ingrediente.getReceta() != null) {
+                        Map<String, Object> recetaDTO = new HashMap<>();
+                        recetaDTO.put("idReceta", ingrediente.getReceta().getIdReceta());
+                        recetaDTO.put("nombreReceta", ingrediente.getReceta().getNombreReceta());
+                        dto.put("receta", recetaDTO);
+                    }
+                    
+                    return dto;
+                })
+                .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(ingredientesDTO);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+
+    //Endpoint específico para creación de recetas con ingredientes desde el frontend
+    @PostMapping("/crearRecetaConIngredientes")
+    public ResponseEntity<?> crearRecetaConIngredientes(@RequestBody Map<String, Object> recetaData) {
+        try {
+            System.out.println("=== DATOS RECIBIDOS PARA CREAR RECETA ===");
+            System.out.println(recetaData);
+            
+            // Extraer datos básicos de la receta
+            String nombreReceta = (String) recetaData.get("nombreReceta");
+            String descripcionReceta = (String) recetaData.get("descripcionReceta");
+            String fotoPrincipal = (String) recetaData.get("fotoPrincipal");
+            String instrucciones = (String) recetaData.get("instrucciones");
+            
+            // Crear objeto receta
+            Recetas nuevaReceta = new Recetas();
+            nuevaReceta.setNombreReceta(nombreReceta);
+            nuevaReceta.setDescripcionReceta(descripcionReceta);
+            nuevaReceta.setFotoPrincipal(fotoPrincipal);
+            nuevaReceta.setInstrucciones(instrucciones);
+            
+            // Establecer fecha actual
+            nuevaReceta.setFecha(java.time.LocalDate.now());
+            
+            // Procesar porciones
+            if (recetaData.get("porciones") != null) {
+                int porciones;
+                if (recetaData.get("porciones") instanceof Integer) {
+                    porciones = (Integer) recetaData.get("porciones");
+                } else if (recetaData.get("porciones") instanceof String) {
+                    porciones = Integer.parseInt((String) recetaData.get("porciones"));
+                } else {
+                    porciones = 1;
+                }
+                nuevaReceta.setPorciones(porciones);
+                nuevaReceta.setCantidadPersonas(porciones);
+            } else {
+                nuevaReceta.setPorciones(1);
+                nuevaReceta.setCantidadPersonas(1);
+            }
+            
+            // Establecer usuario
+            Integer idUsuario = null;
+            if (recetaData.get("idUsuario") != null) {
+                idUsuario = (Integer) recetaData.get("idUsuario");
+            } else if (recetaData.get("usuario") != null && ((Map<String, Object>)recetaData.get("usuario")).get("idUsuario") != null) {
+                idUsuario = (Integer) ((Map<String, Object>)recetaData.get("usuario")).get("idUsuario");
+            }
+            
+            if (idUsuario != null) {
+                Usuarios usuario = usuariosDAO.findById(idUsuario);
+                if (usuario != null) {
+                    nuevaReceta.setUsuario(usuario);
+                } else {
+                    return ResponseEntity.badRequest().body("Usuario no encontrado");
+                }
+            } else {
+                return ResponseEntity.badRequest().body("ID de usuario no proporcionado");
+            }
+            
+            // Establecer tipo de receta
+            Integer idTipo = null;
+            if (recetaData.get("idTipo") != null && recetaData.get("idTipo") instanceof Map) {
+                Map<String, Object> tipoMap = (Map<String, Object>) recetaData.get("idTipo");
+                if (tipoMap.get("idTipo") != null) {
+                    idTipo = (Integer) tipoMap.get("idTipo");
+                }
+            } else if (recetaData.get("idTipo") != null && recetaData.get("idTipo") instanceof Integer) {
+                idTipo = (Integer) recetaData.get("idTipo");
+            }
+            
+            if (idTipo != null) {
+                Optional<TiposReceta> tipoReceta = tiposRecetaRepository.findById(idTipo);
+                if (tipoReceta.isPresent()) {
+                    nuevaReceta.setIdTipo(tipoReceta.get());
+                } else {
+                    nuevaReceta.setIdTipo(tiposRecetaRepository.findById(1).orElse(null)); // Tipo por defecto
+                }
+            } else {
+                nuevaReceta.setIdTipo(tiposRecetaRepository.findById(1).orElse(null)); // Tipo por defecto
+            }
+            
+            // Autorización pendiente
+            nuevaReceta.setAutorizada(false);
+            
+            // Guardar la receta primero para obtener el ID
+            recetasRepository.save(nuevaReceta);
+            
+            // Procesar ingredientes
+            if (recetaData.get("ingredientes") != null && recetaData.get("ingredientes") instanceof List) {
+                List<Map<String, Object>> ingredientesData = (List<Map<String, Object>>) recetaData.get("ingredientes");
+                
+                for (Map<String, Object> ingredienteData : ingredientesData) {
+                    String nombre = (String) ingredienteData.get("nombre");
+                    Double cantidad = null;
+                    String unidadMedida = "unidad";
+                    
+                    if (ingredienteData.get("cantidad") != null) {
+                        if (ingredienteData.get("cantidad") instanceof Double) {
+                            cantidad = (Double) ingredienteData.get("cantidad");
+                        } else if (ingredienteData.get("cantidad") instanceof Integer) {
+                            cantidad = ((Integer) ingredienteData.get("cantidad")).doubleValue();
+                        } else if (ingredienteData.get("cantidad") instanceof String) {
+                            try {
+                                cantidad = Double.parseDouble((String) ingredienteData.get("cantidad"));
+                            } catch (NumberFormatException e) {
+                                cantidad = 1.0;
+                            }
+                        }
+                    }
+                    
+                    if (ingredienteData.get("unidadMedida") != null) {
+                        unidadMedida = (String) ingredienteData.get("unidadMedida");
+                    }
+                    
+                    if (nombre != null && !nombre.trim().isEmpty()) {
+                        Ingredientes ingrediente = new Ingredientes();
+                        ingrediente.setNombre(nombre);
+                        ingrediente.setCantidad(cantidad != null ? cantidad : 1.0);
+                        ingrediente.setUnidadMedida(unidadMedida);
+                        ingrediente.setReceta(nuevaReceta);
+                        
+                        ingredientesRepository.save(ingrediente);
+                    }
+                }
+            }
+            
+            // Devolver la receta creada
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Receta creada exitosamente");
+            response.put("idReceta", nuevaReceta.getIdReceta());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al crear la receta: " + e.getMessage());
+        }
     }
 
 }
