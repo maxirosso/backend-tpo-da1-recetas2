@@ -208,14 +208,24 @@ public class UsuariosDAO {
     }
     
     public Usuarios getUsuarioAutenticado() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        
-        if (principal instanceof User) {
-            String username = ((User) principal).getUsername();
+        try {
+            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             
-            return usuariosRepository.findByMail(username).orElse(null); // O el campo que estés usando para autenticar
+            // Check if the principal is a Usuarios object (from JWT authentication)
+            if (principal instanceof Usuarios) {
+                return (Usuarios) principal;
+            }
+            
+            // Fallback for other authentication types
+            if (principal instanceof User) {
+                String username = ((User) principal).getUsername();
+                return usuariosRepository.findByMail(username).orElse(null);
+            }
+            
+            return null;
+        } catch (Exception e) {
+            return null;
         }
-        return null; 
     }
 
 

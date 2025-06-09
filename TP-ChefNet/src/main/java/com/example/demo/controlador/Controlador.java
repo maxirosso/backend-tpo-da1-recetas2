@@ -41,6 +41,7 @@ import com.example.demo.modelo.Recetas;
 import com.example.demo.modelo.Sedes;
 import com.example.demo.modelo.TiposReceta;
 import com.example.demo.modelo.Usuarios;
+import com.example.demo.util.JwtUtil;
 
 @RestController
 @RequestMapping("/")
@@ -142,6 +143,9 @@ public class Controlador {
 	@Autowired
 	RecetasAIntentarRepository recetasAIntentarRepository;
 	
+	@Autowired
+	private JwtUtil jwtUtil;
+	
 	
 	@GetMapping("/")
 	public String mensaje() {
@@ -153,7 +157,21 @@ public class Controlador {
 	public ResponseEntity<?> login(@RequestParam String mail, @RequestParam String password) {
 	    Usuarios user = usuariosRepository.findByMailAndPassword(mail, password);
 	    if (user != null) {
-	        return ResponseEntity.ok(user); 
+	        // Generate JWT token
+	        String token = jwtUtil.generateToken(
+	            user.getMail(), 
+	            user.getIdUsuario(), 
+	            user.getTipo() != null ? user.getTipo() : "comun",
+	            user.getRol() != null ? user.getRol() : "user"
+	        );
+	        
+	        // Create response with user data and token
+	        Map<String, Object> response = new HashMap<>();
+	        response.put("user", user);
+	        response.put("token", token);
+	        response.put("tokenType", "Bearer");
+	        
+	        return ResponseEntity.ok(response); 
 	    }
 	    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
 	}
