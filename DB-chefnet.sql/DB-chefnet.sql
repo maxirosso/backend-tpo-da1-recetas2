@@ -325,8 +325,8 @@ ALTER TABLE recetas_a_intentar ADD fechaAgregada datetime default getdate();
 -- Insertar datos de prueba en recetas_a_intentar
 INSERT INTO recetas_a_intentar (idReceta, idUsuario, completada, fechaCompletada, fechaAgregada)
 VALUES 
-(1, 1, 0, null, getdate()),  -- Juan quiere intentar la Tarta de Manzana
-(2, 1, 1, '2024-01-25', '2024-01-20'),  -- Juan completó la Ensalada César
-(1, 2, 0, null, getdate());  -- María quiere intentar la Tarta de Manzana
+(1, 1, 0, null, getdate()), 
+(2, 1, 1, '2024-01-25', '2024-01-20'),  
+(1, 2, 0, null, getdate());  
 
 
