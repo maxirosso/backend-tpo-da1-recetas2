@@ -54,6 +54,15 @@ public class UsuariosDAO {
         // Ensure new recipes are not authorized by default (pending approval)
         if (receta.getIdReceta() == null) {
             receta.setAutorizada(false);
+            
+            // Check for duplicates (only for new recipes)
+            if (receta.getUsuario() != null && receta.getNombreReceta() != null) {
+                Optional<Recetas> existingReceta = recetasRepository.findByNombreRecetaAndUsuario(
+                    receta.getNombreReceta().trim(), receta.getUsuario());
+                if (existingReceta.isPresent()) {
+                    throw new RuntimeException("Ya existe una receta con este nombre para el usuario");
+                }
+            }
         }
         
         // Set current date if not provided

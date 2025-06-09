@@ -44,18 +44,19 @@ create table recetas(
 	idTipo int,
 	fecha date,
 	autorizada bit default 0, -- 0 = pendiente, 1 = autorizada
+	instrucciones varchar(4000), -- Campo para almacenar las instrucciones de la receta
 	constraint fk_recetas_usuarios foreign key (idUsuario) references usuarios,
 	constraint fk_recetas_tipos foreign key (idTipo) references tiposReceta
 )
 
-CREATE TABLE ingredientes (
-    idIngrediente INT PRIMARY KEY NOT NULL,
-    nombre VARCHAR(255) NULL,
-    cantidad FLOAT NULL,
-    unidadMedida VARCHAR(255) NULL,
-    id_receta INT NULL,
-    FOREIGN KEY (id_receta) REFERENCES receta(idReceta)
-);
+create table ingredientes( 
+	idIngrediente int not null identity constraint pk_ingredientes primary key,
+	nombre varchar(200),
+	cantidad FLOAT,
+	unidadMedida VARCHAR(50),
+	idReceta int, -- Corregido para referenciar recetas
+	constraint fk_ingredientes_recetas foreign key (idReceta) references recetas(idReceta)
+)
 
 
 create table unidades(
@@ -207,23 +208,44 @@ VALUES
 ('Ensaladas'),
 ('Sopas');
 
--- Insertar recetas
-INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, fotoPrincipal, porciones, cantidadPersonas, idTipo, fecha, autorizada)
+-- Insertar recetas con instrucciones
+INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, fotoPrincipal, porciones, cantidadPersonas, idTipo, fecha, autorizada, instrucciones)
 VALUES 
-(1, 'Tarta de Manzana', 'Una deliciosa tarta de manzana con canela.', 'https://example.com/tarta_manzana.png', 8, 4, 1, '2024-01-15', 1),
-(2, 'Ensalada César', 'Clásica ensalada césar con pollo y aderezo.', 'https://example.com/ensalada_cesar.png', 2, 1, 2, '2024-01-16', 1),
-(1, 'Brownies de Chocolate', 'Brownies húmedos con chispas de chocolate y nueces.', 'https://example.com/brownies.png', 12, 6, 1, '2024-01-20', 0),
-(2, 'Sopa de Tomate', 'Cremosa sopa de tomate con albahaca fresca.', 'https://example.com/sopa_tomate.png', 4, 2, 3, '2024-01-21', 0),
-(1, 'Pizza Margherita', 'Pizza clásica con tomate, mozzarella y albahaca.', 'https://example.com/pizza.png', 4, 2, 1, '2024-01-22', 0);
+(1, 'Tarta de Manzana', 'Una deliciosa tarta de manzana con canela.', 'https://example.com/tarta_manzana.png', 8, 4, 1, '2024-01-15', 1, 'Precalentar el horno a 180°C.
+Mezclar la harina con el azúcar en un bol.
+Pelar y cortar las manzanas en rodajas finas.
+Colocar las manzanas sobre la masa.
+Hornear durante 45 minutos hasta dorar.'),
+(2, 'Ensalada César', 'Clásica ensalada césar con pollo y aderezo.', 'https://example.com/ensalada_cesar.png', 2, 1, 2, '2024-01-16', 1, 'Lavar y cortar la lechuga en trozos.
+Cocinar el pollo a la plancha y cortarlo en tiras.
+Mezclar la lechuga con el pollo.
+Agregar el aderezo césar y mezclar bien.
+Servir inmediatamente.'),
+(1, 'Brownies de Chocolate', 'Brownies húmedos con chispas de chocolate y nueces.', 'https://example.com/brownies.png', 12, 6, 1, '2024-01-20', 0, 'Derretir el chocolate con manteca.
+Batir los huevos con azúcar.
+Incorporar el chocolate derretido.
+Agregar harina y mezclar.
+Hornear 25 minutos.'),
+(2, 'Sopa de Tomate', 'Cremosa sopa de tomate con albahaca fresca.', 'https://example.com/sopa_tomate.png', 4, 2, 3, '2024-01-21', 0, 'Sofreír cebolla en aceite.
+Agregar tomates pelados.
+Cocinar 15 minutos.
+Licuar hasta obtener consistencia cremosa.
+Condimentar con sal y albahaca.'),
+(1, 'Pizza Margherita', 'Pizza clásica con tomate, mozzarella y albahaca.', 'https://example.com/pizza.png', 4, 2, 1, '2024-01-22', 0, 'Extender la masa de pizza.
+Cubrir con salsa de tomate.
+Agregar mozzarella en trozos.
+Hornear a 220°C por 12 minutos.
+Decorar con albahaca fresca.');
 
--- Insertar ingredientes
-INSERT INTO ingredientes (nombre)
+-- Insertar ingredientes con recetas asociadas
+INSERT INTO ingredientes (nombre, cantidad, unidadMedida, idReceta)
 VALUES 
-('Harina'),
-('Manzana'),
-('Pollo'),
-('Lechuga'),
-('Aderezo César');
+('Harina', 200, 'gramos', 1),
+('Manzanas', 3, 'piezas', 1),
+('Azúcar', 150, 'gramos', 1),
+('Pollo', 250, 'gramos', 2),
+('Lechuga', 1, 'unidad', 2),
+('Aderezo César', 2, 'cucharadas', 2);
 
 -- Insertar unidades
 INSERT INTO unidades (descripcion)

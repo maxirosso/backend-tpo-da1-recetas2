@@ -306,6 +306,21 @@ public class Controlador {
                         dto.put("usuario", usuarioDTO);
                     }
                     
+                    // Agregar ingredientes (estaba faltando!)
+                    if (receta.getIngredientes() != null && !receta.getIngredientes().isEmpty()) {
+                        List<Map<String, Object>> ingredientesDTO = receta.getIngredientes().stream()
+                            .map(ingrediente -> {
+                                Map<String, Object> ingDTO = new HashMap<>();
+                                ingDTO.put("idIngrediente", ingrediente.getIdIngrediente());
+                                ingDTO.put("nombre", ingrediente.getNombre());
+                                ingDTO.put("cantidad", ingrediente.getCantidad());
+                                ingDTO.put("unidadMedida", ingrediente.getUnidadMedida());
+                                return ingDTO;
+                            })
+                            .collect(Collectors.toList());
+                        dto.put("ingredientes", ingredientesDTO);
+                    }
+                    
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -1059,6 +1074,7 @@ public class Controlador {
                                 ingDTO.put("idIngrediente", ingrediente.getIdIngrediente());
                                 ingDTO.put("nombre", ingrediente.getNombre());
                                 ingDTO.put("cantidad", ingrediente.getCantidad());
+                                ingDTO.put("unidadMedida", ingrediente.getUnidadMedida());
                                 return ingDTO;
                             })
                             .collect(Collectors.toList());
@@ -1110,8 +1126,19 @@ public class Controlador {
             usuarioDTO.put("tipo", receta.getUsuario().getTipo());
             dto.put("usuario", usuarioDTO);
         }
-        // Ingredientes planos
-        dto.put("ingredientes", receta.getIngredientes());
+        // Ingredientes planos (sin referencias circulares)
+        List<Map<String, Object>> ingredientesDTO = new ArrayList<>();
+        if (receta.getIngredientes() != null) {
+            for (Ingredientes ingrediente : receta.getIngredientes()) {
+                Map<String, Object> ingredienteMap = new HashMap<>();
+                ingredienteMap.put("idIngrediente", ingrediente.getIdIngrediente());
+                ingredienteMap.put("nombre", ingrediente.getNombre());
+                ingredienteMap.put("cantidad", ingrediente.getCantidad());
+                ingredienteMap.put("unidadMedida", ingrediente.getUnidadMedida());
+                ingredientesDTO.add(ingredienteMap);
+            }
+        }
+        dto.put("ingredientes", ingredientesDTO);
         // Instrucciones planas
         dto.put("instrucciones", receta.getInstrucciones());
         // Otros campos simples si existen
@@ -1189,6 +1216,43 @@ public class Controlador {
             
         } catch (Exception e) {
             return new ResponseEntity<>("Error al agregar receta: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // Eliminar una receta completamente (solo el propietario)
+    @DeleteMapping("/eliminarRecetaCompleta/{idReceta}")
+    public ResponseEntity<String> eliminarRecetaCompleta(@PathVariable Integer idReceta, @RequestParam(required = false) Integer idUsuario) {
+        try {
+            Optional<Recetas> recetaOptional = recetasRepository.findById(idReceta);
+            if (!recetaOptional.isPresent()) {
+                return new ResponseEntity<>("Receta no encontrada", HttpStatus.NOT_FOUND);
+            }
+            
+            Recetas receta = recetaOptional.get();
+            
+            // Verificar que el usuario que intenta eliminar es el propietario
+            Usuarios usuario = null;
+            if (idUsuario != null) {
+                usuario = usuariosDAO.findById(idUsuario);
+            } else {
+                usuario = usuariosDAO.getUsuarioAutenticado();
+            }
+            
+            if (usuario == null) {
+                return new ResponseEntity<>("Usuario no identificado", HttpStatus.UNAUTHORIZED);
+            }
+            
+            if (!receta.getUsuario().getIdUsuario().equals(usuario.getIdUsuario())) {
+                return new ResponseEntity<>("No tienes permisos para eliminar esta receta", HttpStatus.FORBIDDEN);
+            }
+            
+            // Eliminar la receta completamente (incluyendo ingredientes por CASCADE)
+            recetasRepository.delete(receta);
+            
+            return new ResponseEntity<>("Receta eliminada completamente", HttpStatus.OK);
+            
+        } catch (Exception e) {
+            return new ResponseEntity<>("Error al eliminar receta: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1864,6 +1928,7 @@ public class Controlador {
                                 ingDTO.put("idIngrediente", ingrediente.getIdIngrediente());
                                 ingDTO.put("nombre", ingrediente.getNombre());
                                 ingDTO.put("cantidad", ingrediente.getCantidad());
+                                ingDTO.put("unidadMedida", ingrediente.getUnidadMedida());
                                 return ingDTO;
                             })
                             .collect(Collectors.toList());
