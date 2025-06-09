@@ -107,8 +107,14 @@ public interface RecetasRepository extends JpaRepository<Recetas, Integer> {
 
     Optional<Recetas> findByNombreRecetaAndUsuario(String nombreReceta, Usuarios usuario);
 
-    // Get the 3 most recent recipes
+    // Get the 3 most recent recipes by date
     List<Recetas> findTop3ByOrderByFechaDesc();
+    
+    // Get the 3 most recent authorized recipes by date
+    List<Recetas> findTop3ByAutorizadaTrueOrderByFechaDesc();
+    
+    // Get the 3 most recent authorized recipes by ID (newest IDs first)
+    List<Recetas> findTop3ByAutorizadaTrueOrderByIdRecetaDesc();
 
     // Get recipes pending approval
     List<Recetas> findByAutorizadaFalse();

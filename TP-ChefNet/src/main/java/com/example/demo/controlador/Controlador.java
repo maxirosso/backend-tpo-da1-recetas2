@@ -38,6 +38,8 @@ import com.example.demo.modelo.Cursos;
 import com.example.demo.modelo.Ingredientes;
 import com.example.demo.modelo.Inscripcion;
 import com.example.demo.modelo.Recetas;
+import com.example.demo.modelo.RecetasGuardadas;
+import com.example.demo.modelo.RecetasGuardadasId;
 import com.example.demo.modelo.Sedes;
 import com.example.demo.modelo.TiposReceta;
 import com.example.demo.modelo.Usuarios;
@@ -144,6 +146,9 @@ public class Controlador {
 	RecetasAIntentarRepository recetasAIntentarRepository;
 	
 	@Autowired
+	RecetasGuardadasRepository recetasGuardadasRepository;
+	
+	@Autowired
 	private JwtUtil jwtUtil;
 	
 	
@@ -176,10 +181,17 @@ public class Controlador {
 	    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
 	}
 	
-	//si tiene conexión se le mostrarán las 3 últimas recetas cargadas por los usuarios
+	//si tiene conexión se le mostrarán las 3 últimas recetas autorizadas cargadas por los usuarios (por ID más reciente)
 	@GetMapping("/ultimasRecetas")
 	public ResponseEntity<List<Map<String, Object>>> getUltimasRecetas() {
-	    List<Recetas> recetas = recetasRepository.findTop3ByOrderByFechaDesc();
+	    // Usar el método que trae las recetas autorizadas ordenadas por ID descendente (más nuevas primero)
+	    List<Recetas> recetas = recetasRepository.findTop3ByAutorizadaTrueOrderByIdRecetaDesc();
+	    
+	    // Log para depuración
+	    System.out.println("Últimas recetas solicitadas, encontradas: " + recetas.size());
+	    for (Recetas r : recetas) {
+	        System.out.println("ID: " + r.getIdReceta() + ", Nombre: " + r.getNombreReceta() + ", Autorizada: " + r.isAutorizada());
+	    }
 	    
 	    // Convert to DTOs to include rating calculations
 	    List<Map<String, Object>> recetasDTO = recetas.stream()
@@ -360,6 +372,12 @@ public class Controlador {
                 receta.getIngredientes().forEach(ingrediente -> {
                     ingrediente.setReceta(receta);
                 });
+            }
+            
+            // Autorizar automáticamente las recetas cargadas por usuarios comunes
+            if (receta.getUsuario() != null && "comun".equals(receta.getUsuario().getTipo())) {
+                receta.setAutorizada(true);
+                System.out.println("Receta autorizada automáticamente para usuario común: " + receta.getNombreReceta());
             }
             
             Recetas recetaGuardada = usuariosDAO.cargarReceta(receta);
@@ -2255,5 +2273,112 @@ public class Controlador {
         }
     }
 
+    @PostMapping("/guardarReceta/{idReceta}")
+    public ResponseEntity<?> guardarReceta(@PathVariable Integer idReceta, @RequestParam(required = false) Integer idUsuario) {
+        try {
+            // Obtener el usuario autenticado o usar el ID proporcionado
+            Usuarios usuario;
+            if (idUsuario != null) {
+                usuario = usuariosRepository.findById(idUsuario).orElse(null);
+            } else {
+                usuario = usuariosDAO.getUsuarioAutenticado();
+            }
+            
+            if (usuario == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debe iniciar sesión para guardar una receta.");
+            }
+            
+            // Verificar si la receta existe
+            Optional<Recetas> recetaOpt = recetasRepository.findById(idReceta);
+            if (!recetaOpt.isPresent()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("La receta no existe.");
+            }
+            
+            Recetas receta = recetaOpt.get();
+            
+            // Verificar si ya está guardada
+            if (recetasGuardadasRepository.existsByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario())) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Esta receta ya está guardada.");
+            }
+            
+            // Guardar la receta
+            RecetasGuardadas recetaGuardada = new RecetasGuardadas(idReceta, usuario.getIdUsuario());
+            recetaGuardada.setFechaGuardada(new java.util.Date());
+            recetasGuardadasRepository.save(recetaGuardada);
+            
+            return ResponseEntity.ok("Receta guardada exitosamente.");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al guardar la receta: " + e.getMessage());
+        }
+    }
+    
+    // Obtener todas las recetas guardadas por un usuario
+    @GetMapping("/recetasGuardadas")
+    public ResponseEntity<?> getRecetasGuardadas(@RequestParam(required = false) Integer idUsuario) {
+        try {
+            // Obtener el usuario autenticado o usar el ID proporcionado
+            Usuarios usuario;
+            if (idUsuario != null) {
+                usuario = usuariosRepository.findById(idUsuario).orElse(null);
+            } else {
+                usuario = usuariosDAO.getUsuarioAutenticado();
+            }
+            
+            if (usuario == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debe iniciar sesión para ver sus recetas guardadas.");
+            }
+            
+            // Obtener las recetas guardadas con detalles
+            List<RecetasGuardadas> recetasGuardadas = recetasGuardadasRepository.findByIdUsuarioWithRecetaDetails(usuario.getIdUsuario());
+            
+            // Transformar a DTOs para la respuesta
+            List<Map<String, Object>> recetasDTO = recetasGuardadas.stream()
+                .map(rg -> {
+                    Recetas receta = rg.getReceta();
+                    return createRecipeDTO(receta, null, null, rg.getFechaGuardada());
+                })
+                .collect(Collectors.toList());
+                
+            return new ResponseEntity<>(recetasDTO, HttpStatus.OK);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al obtener las recetas guardadas: " + e.getMessage());
+        }
+    }
+    
+    // Eliminar una receta guardada
+    @DeleteMapping("/eliminarRecetaGuardada/{idReceta}")
+    public ResponseEntity<?> eliminarRecetaGuardada(@PathVariable Integer idReceta, @RequestParam(required = false) Integer idUsuario) {
+        try {
+            // Obtener el usuario autenticado o usar el ID proporcionado
+            Usuarios usuario;
+            if (idUsuario != null) {
+                usuario = usuariosRepository.findById(idUsuario).orElse(null);
+            } else {
+                usuario = usuariosDAO.getUsuarioAutenticado();
+            }
+            
+            if (usuario == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debe iniciar sesión para eliminar una receta guardada.");
+            }
+            
+            // Verificar si existe la receta guardada
+            if (!recetasGuardadasRepository.existsByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario())) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No se encontró la receta guardada.");
+            }
+            
+            // Eliminar la receta guardada
+            recetasGuardadasRepository.deleteByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario());
+            
+            return ResponseEntity.ok("Receta eliminada de guardados exitosamente.");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al eliminar la receta guardada: " + e.getMessage());
+        }
+    }
 }
 
