@@ -1039,8 +1039,6 @@ public class Controlador {
             System.out.println("No estás conectado a una red gratuita.");
             System.out.println("¿Deseas usar una red con cargo? (S/N):");
 
-            // Simular que el usuario ingresa una opción
-            // En un entorno web, esto podría ser un cuadro de diálogo
             Scanner scanner = new Scanner(System.in);
             String respuesta = scanner.nextLine();
 
@@ -1060,10 +1058,7 @@ public class Controlador {
         }
     }
 
-    // Método hipotético para verificar si hay una conexión gratuita
     private boolean verificarConexionRed() {
-        // Aquí debería ir la lógica real para verificar la conexión.
-        // Para este ejemplo, vamos a simular que no está conectado a una red gratuita.
         return false;
     }
 
@@ -1666,31 +1661,10 @@ public class Controlador {
         inscripciones.setEstadoInscripcion("Baja");
         inscripcionDAO.save(inscripciones);
 
-        /*
-        // Procesar el reintegro: puede ir a la tarjeta de crédito o a la cuenta corriente
-        if (reintegroEnTarjeta) {
-            procesarReintegroEnTarjeta(inscripcion, reintegro);
-        } else {
-            procesarReintegroEnCuentaCorriente(inscripcion, reintegro);
-        }
-        */
 
         return ResponseEntity.ok("Baja procesada correctamente. Reintegro: " + reintegro);
     }
 
-    /*
-    //Método para procesar reintegro a tarjeta
-    private void procesarReintegroEnTarjeta(Inscripcion inscripcion, BigDecimal reintegro) {
-        // Lógica para procesar el reintegro en tarjeta de crédito
-        // Aquí se debería llamar al servicio de pagos para hacer el reintegro
-    }
-
-    //Método para procesar reintegro a cuenta corriente
-    private void procesarReintegroEnCuentaCorriente(Inscripcion inscripcion, BigDecimal reintegro) {
-        // Lógica para reintegrar a la cuenta corriente del alumno
-        // Aquí se debería actualizar la cuenta corriente del alumno
-    }
-    */
 
     // Username availability check
     @GetMapping("/auth/check-username")
