@@ -40,56 +40,78 @@ public class AlumnosDAO {
 	
     public boolean registrarAlumno(String mail, Integer idUsuario, String medioPago, String dniFrente, String dniFondo, String tramite) {
         try {
-            // Check if user already exists by email
+            System.out.println("Intentando registrar alumno con email: " + mail);
+            
+            // Buscar usuario existente por email
             Optional<Usuarios> existingUser = usuariosRepository.findByMail(mail);
             Usuarios usuario;
             
             if (existingUser.isPresent()) {
-                // If user exists, try to upgrade them to alumno
+                // Si el usuario existe, verificar si ya es alumno
                 usuario = existingUser.get();
+                System.out.println("Usuario encontrado: " + usuario.getMail() + " - Tipo: " + usuario.getTipo());
                 
-                // Check if they are already an alumno
+                // Verificar si ya es alumno
                 if (alumnosRepository.findById(usuario.getIdUsuario()).isPresent()) {
-                    return false; // Already a student
+                    System.out.println("El usuario ya es un alumno");
+                    return false; // Ya es un estudiante
                 }
+                
+                // Actualizar usuario existente a tipo alumno
+                usuario.setTipo("alumno");
+                if (medioPago != null && !medioPago.trim().isEmpty()) {
+                    usuario.setMedioPago(medioPago);
+                }
+                usuario = usuariosRepository.save(usuario);
+                System.out.println("Usuario actualizado a tipo alumno");
+                
             } else {
-                // Create new user for student registration
+                // Crear nuevo usuario directamente como alumno
+                System.out.println("Usuario no encontrado, creando nuevo usuario como alumno");
                 usuario = new Usuarios();
                 usuario.setMail(mail);
                 usuario.setTipo("alumno");
-                usuario.setHabilitado("no"); // Will be enabled after email verification
-                usuario.setMedioPago(medioPago);
-                // Set default values for required fields
-                usuario.setPassword(""); // Will be set during verification
-                usuario.setNombre(""); // Will be set during verification
+                usuario.setHabilitado("no"); // Se habilitará después de verificar email
+                usuario.setMedioPago(medioPago != null ? medioPago : "");
+                
+                // Establecer valores predeterminados para campos requeridos
+                usuario.setPassword("temp123"); // Contraseña temporal - se cambiará en verificación
+                usuario.setNombre("Alumno Nuevo"); // Nombre temporal - se cambiará en verificación  
                 usuario.setDireccion("");
                 usuario.setAvatar("");
-                usuario.setNickname(""); // Will be set during verification
+                usuario.setNickname("alumno" + System.currentTimeMillis()); // Nickname único temporal
+                usuario.setRol("user");
                 
                 usuario = usuariosRepository.save(usuario);
+                System.out.println("Nuevo usuario creado como alumno con ID: " + usuario.getIdUsuario());
             }
             
-            // Upgrade existing user to alumno or set type for new user
-            usuario.setTipo("alumno");
-            usuario.setMedioPago(medioPago);
-            usuariosRepository.save(usuario);
-            
-            // Create alumno record
+            // Crear registro de alumno
             Alumnos nuevoAlumno = new Alumnos();
-            nuevoAlumno.setIdAlumno(usuario.getIdUsuario());
-            nuevoAlumno.setNroTarjeta(medioPago); // Store payment method
-            nuevoAlumno.setDniFrente(dniFrente);
-            nuevoAlumno.setDniFondo(dniFondo);
-            nuevoAlumno.setTramite(tramite);
+            // Con @MapsId, el idAlumno se asigna automáticamente desde el usuario
+            nuevoAlumno.setNroTarjeta(medioPago != null ? medioPago : ""); 
+            nuevoAlumno.setDniFrente(dniFrente != null ? dniFrente : "");
+            nuevoAlumno.setDniFondo(dniFondo != null ? dniFondo : "");
+            nuevoAlumno.setTramite(tramite != null ? tramite : "");
             nuevoAlumno.setCuentaCorriente(BigDecimal.ZERO);
             nuevoAlumno.setUsuario(usuario);
-            alumnosRepository.save(nuevoAlumno);
             
-            // Send confirmation email
-            enviarCorreoDeConfirmacion(mail);
+            alumnosRepository.save(nuevoAlumno);
+            System.out.println("Alumno registrado exitosamente con ID: " + nuevoAlumno.getIdAlumno());
+            
+            // Enviar correo de confirmación
+            try {
+                enviarCorreoDeConfirmacion(mail);
+                System.out.println("Correo de confirmación enviado");
+            } catch (Exception emailError) {
+                System.out.println("Error enviando correo, pero registro exitoso: " + emailError.getMessage());
+                // No fallar el registro por error de email
+            }
             
             return true;
+            
         } catch (Exception e) {
+            System.out.println("Error en registrarAlumno: " + e.getMessage());
             e.printStackTrace();
             return false;
         }

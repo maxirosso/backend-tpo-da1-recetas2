@@ -13,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.MapsId;
 
 @Entity
 @Table(name = "alumnos")
@@ -31,7 +32,8 @@ public class Alumnos {
 	@Column(name = "cuentacorriente")
 	private BigDecimal cuentaCorriente;
 	@OneToOne
-	@JoinColumn(name = "idAlumno", referencedColumnName = "idUsuario")
+	@MapsId
+	@JoinColumn(name = "idalumno", referencedColumnName = "idUsuario")
 	@JsonBackReference
 	private Usuarios usuario;
 	@ManyToOne

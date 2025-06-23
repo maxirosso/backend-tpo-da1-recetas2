@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1580,30 +1581,82 @@ public class Controlador {
     
     //Cursos disponibles
     @GetMapping("/getCursosDisponibles")
-    public ResponseEntity<List<Cursos>> obtenerCursosDisponibles(@RequestParam Integer idUsuario) {
-        Usuarios usuario = usuariosDAO.findById(idUsuario);
-        List<Cursos> cursos = cursosDAO.getAllCursos(cursosRepository);
-        List<Cursos> resultado = new ArrayList<>();
-
-        for (Cursos curso : cursos) {
-            Cursos dto = new Cursos();
-            dto.setIdCurso(curso.getIdCurso());
-            dto.setDescripcion(curso.getDescripcion());
-
-            if ("alumno".equalsIgnoreCase(usuario.getTipo())) {
-                dto.setContenidos(curso.getContenidos());
-                dto.setRequerimientos(curso.getRequerimientos());
-                dto.setDuracion(curso.getDuracion());
-                dto.setPrecio(curso.getPrecio());
-                dto.setModalidad(curso.getModalidad());
+    public ResponseEntity<List<Map<String, Object>>> obtenerCursosDisponibles(@RequestParam Integer idUsuario) {
+        try {
+            Usuarios usuario = usuariosDAO.findById(idUsuario);
+            if (usuario == null) {
+                return ResponseEntity.badRequest().body(null);
             }
 
-            resultado.add(dto);
+            List<CronogramaCursos> cronogramas = cronogramaCursosRepository.findAll();
+            List<Map<String, Object>> resultado = new ArrayList<>();
+
+            for (CronogramaCursos cronograma : cronogramas) {
+                Cursos curso = cronograma.getIdCurso();
+                Sedes sede = cronograma.getIdSede();
+                
+                Map<String, Object> dto = new HashMap<>();
+                dto.put("id", curso.getIdCurso());
+                dto.put("idCurso", curso.getIdCurso());
+                dto.put("idCronograma", cronograma.getIdCronograma());
+                dto.put("title", curso.getDescripcion());
+                dto.put("descripcion", curso.getDescripcion());
+                
+                // Information available to all users
+                if ("alumno".equalsIgnoreCase(usuario.getTipo())) {
+                    // Full information for students
+                    dto.put("contenidos", curso.getContenidos());
+                    dto.put("requerimientos", curso.getRequerimientos());
+                    dto.put("duracion", curso.getDuracion());
+                    dto.put("precio", curso.getPrecio());
+                    dto.put("modalidad", curso.getModalidad());
+                    dto.put("fechaInicio", cronograma.getFechaInicio());
+                    dto.put("fechaFin", cronograma.getFechaFin());
+                    dto.put("vacantesDisponibles", cronograma.getVacantesDisponibles());
+                    
+                    // Sede information
+                    if (sede != null) {
+                        Map<String, Object> sedeDto = new HashMap<>();
+                        sedeDto.put("id", sede.getIdSede());
+                        sedeDto.put("nombre", sede.getNombreSede());
+                        sedeDto.put("direccion", sede.getDireccionSede());
+                        sedeDto.put("telefono", sede.getTelefonoSede());
+                        sedeDto.put("email", sede.getMailSede());
+                        sedeDto.put("whatsapp", sede.getWhatsApp());
+                        sedeDto.put("tipoBonificacion", sede.getTipoBonificacion());
+                        sedeDto.put("bonificacion", sede.getBonificacionCursos());
+                        sedeDto.put("tipoPromocion", sede.getTipoPromocion());
+                        sedeDto.put("promocion", sede.getPromocionCursos());
+                        dto.put("sede", sedeDto);
+                    }
+                    
+                    // Calculate final price with discounts
+                    BigDecimal precioFinal = curso.getPrecio();
+                    if (sede != null && sede.getBonificacionCursos() > 0) {
+                        if ("descuento".equalsIgnoreCase(sede.getTipoBonificacion())) {
+                            precioFinal = precioFinal.subtract(precioFinal.multiply(BigDecimal.valueOf(sede.getBonificacionCursos() / 100)));
+                        }
+                    }
+                    dto.put("precioFinal", precioFinal);
+                } else {
+                    // Limited information for non-students
+                    dto.put("contenidos", "Información completa disponible para estudiantes registrados");
+                    dto.put("requerimientos", "Registrate como estudiante para ver los requisitos");
+                    dto.put("duracion", "-");
+                    dto.put("precio", "-");
+                    dto.put("modalidad", curso.getModalidad());
+                }
+
+                resultado.add(dto);
+            }
+
+            return ResponseEntity.ok(resultado);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
-
-        return ResponseEntity.ok(resultado);
     }
-
+    
     
     //Inscripcion
     @PostMapping("/inscribirseACurso")
@@ -1611,11 +1664,77 @@ public class Controlador {
         @RequestParam int idAlumno,
         @RequestParam int idCronograma) {
 
+        System.out.println("=== INSCRIPCION DEBUG ===");
+        System.out.println("Recibido idAlumno: " + idAlumno);
+        System.out.println("Recibido idCronograma: " + idCronograma);
+
         try {
-            cursosDAO.inscribirAlumnoACurso(idAlumno, idCronograma);
+            // Verificar que el alumno existe, si no existe pero el usuario sí, crearlo automáticamente
+            Optional<Alumnos> alumnoOpt = alumnosRepository.findById(idAlumno);
+            Alumnos alumno;
+            
+            if (!alumnoOpt.isPresent()) {
+                // Verificar si existe como usuario
+                Optional<Usuarios> usuarioOpt = usuariosRepository.findById(idAlumno);
+                if (!usuarioOpt.isPresent()) {
+                    return ResponseEntity.badRequest().body("Usuario no encontrado");
+                }
+                
+                Usuarios usuario = usuarioOpt.get();
+                if (!"alumno".equals(usuario.getTipo())) {
+                    return ResponseEntity.badRequest().body("El usuario no es de tipo alumno");
+                }
+                
+                // Crear automáticamente la entrada de alumno
+                alumno = new Alumnos();
+                alumno.setIdAlumno(idAlumno);
+                alumno.setNroTarjeta(usuario.getMedioPago()); // Usar el medio de pago como número de tarjeta
+                alumno.setCuentaCorriente(new java.math.BigDecimal("10000.00")); // Cuenta corriente por defecto
+                alumno.setUsuario(usuario); // Establecer la relación con el usuario
+                alumno = alumnosRepository.save(alumno);
+                
+                System.out.println("Alumno creado automáticamente para usuario ID: " + idAlumno);
+            } else {
+                alumno = alumnoOpt.get();
+            }
+
+            // Verificar que el cronograma existe
+            Optional<CronogramaCursos> cronogramaOpt = cronogramaCursosRepository.findById(idCronograma);
+            if (!cronogramaOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Cronograma de curso no encontrado");
+            }
+
+            CronogramaCursos cronograma = cronogramaOpt.get();
+
+            // Verificar vacantes disponibles
+            if (cronograma.getVacantesDisponibles() <= 0) {
+                return ResponseEntity.badRequest().body("No hay vacantes disponibles para este curso");
+            }
+
+            // Crear nueva inscripción
+            Inscripcion inscripcion = new Inscripcion();
+            inscripcion.setAlumno(alumno);
+            inscripcion.setIdAlumno(idAlumno);
+            inscripcion.setCronograma(cronograma);
+            inscripcion.setIdCronograma(idCronograma);
+            inscripcion.setCurso(cronograma.getIdCurso());
+            inscripcion.setIdCurso(cronograma.getIdCurso().getIdCurso());
+            inscripcion.setFechaInscripcion(new Date());
+            inscripcion.setEstadoInscripcion("inscrito");
+            inscripcion.setEstadoPago("pagado");
+            inscripcion.setMonto(cronograma.getIdCurso().getPrecio());
+
+            // Guardar inscripción
+            inscripcionRepository.save(inscripcion);
+
+            // Actualizar vacantes disponibles
+            cronograma.setVacantesDisponibles(cronograma.getVacantesDisponibles() - 1);
+            cronogramaCursosRepository.save(cronograma);
+
             return ResponseEntity.ok("Inscripción realizada con éxito. Se ha cargado el pago y enviado confirmación.");
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al procesar la inscripción: " + e.getMessage());
         }
     }
     

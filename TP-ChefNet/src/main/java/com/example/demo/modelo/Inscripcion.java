@@ -19,13 +19,22 @@ public class Inscripcion {
     @JoinColumn(name = "idAlumno", nullable = false)
     private Alumnos alumno;
     
+    @Column(name = "idAlumno", insertable = false, updatable = false)
+    private Integer idAlumno;
+    
     @ManyToOne
     @JoinColumn(name = "idCronograma", nullable = false)
     private CronogramaCursos cronograma;
 
+    @Column(name = "idCronograma", insertable = false, updatable = false)
+    private Integer idCronograma;
+
     @ManyToOne
     @JoinColumn(name = "idCurso", nullable = false)
     private Cursos curso; 
+
+    @Column(name = "idCurso", insertable = false, updatable = false)
+    private Integer idCurso;
 
     @Column(name = "fechaInscripcion", nullable = false)
     @Temporal(TemporalType.TIMESTAMP)
@@ -116,6 +125,30 @@ public class Inscripcion {
 
 	public void setEstadoPago(String estadoPago) {
 		this.estadoPago = estadoPago;
+	}
+
+	public Integer getIdAlumno() {
+		return idAlumno;
+	}
+
+	public void setIdAlumno(Integer idAlumno) {
+		this.idAlumno = idAlumno;
+	}
+
+	public Integer getIdCronograma() {
+		return idCronograma;
+	}
+
+	public void setIdCronograma(Integer idCronograma) {
+		this.idCronograma = idCronograma;
+	}
+
+	public Integer getIdCurso() {
+		return idCurso;
+	}
+
+	public void setIdCurso(Integer idCurso) {
+		this.idCurso = idCurso;
 	}
 
 	@Override

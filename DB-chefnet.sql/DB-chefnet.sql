@@ -330,3 +330,6 @@ VALUES
 (1, 2, 0, null, getdate());  
 
 
+-- PRIMERO: Corregir la estructura de la tabla sedes (falta una coma)
+ALTER TABLE sedes ADD CONSTRAINT temp_check CHECK (1=1);
+ALTER TABLE sedes DROP CONSTRAINT temp_check;

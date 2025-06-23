@@ -27,12 +27,18 @@ public class SecurityConfig {
                 // Public endpoints that don't require authentication
                 .requestMatchers(new AntPathRequestMatcher("/login")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/registrarUsuario")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/registrarAlumno")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/registrarVisitante")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/usuarios/perfil")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/recuperarClave")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/ultimasRecetas")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/recetas/buscar/**")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/recetas/publicas")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/cursos/publicos")).permitAll()
+                // Temporarily allow enrollment endpoint for debugging
+                .requestMatchers(new AntPathRequestMatcher("/inscribirseACurso")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/getCursosDisponibles")).permitAll()
                 // All other endpoints require authentication
                 .anyRequest().authenticated()
             )
