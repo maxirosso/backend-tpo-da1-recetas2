@@ -157,6 +157,19 @@ public class Controlador {
 	public String mensaje() {
 		return ("Comenzamos a ejecutar");
 	}
+    
+    // Endpoint de prueba para verificar email
+    @PostMapping("/test-email")
+    public ResponseEntity<String> testEmail(@RequestParam String mail) {
+        System.out.println("🧪 Probando envío de email a: " + mail);
+        try {
+            usuariosDAO.testEmailSend(mail);
+            return new ResponseEntity<>("Email de prueba enviado a " + mail, HttpStatus.OK);
+        } catch (Exception e) {
+            System.out.println("🔴 Error en test de email: " + e.getMessage());
+            return new ResponseEntity<>("Error enviando email de prueba: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 	
 	//login usuario
 	@PostMapping("/login")
@@ -272,7 +285,7 @@ public class Controlador {
 	        return ResponseEntity.ok("Código enviado al correo.");
 	    }
 
-	    return ResponseEntity.badRequest().body("Correo no encontrado.");
+	    return ResponseEntity.badRequest().body("Correo no encontrado en el sistema.");
 	}
 	
 	//registrar usuario
@@ -416,14 +429,75 @@ public class Controlador {
     }
     
    
-    //Registro de Visitantes
+    //Registro de Visitantes (sin código de verificación)
     @PostMapping("/registrarVisitante")
-    public ResponseEntity<String> registrarVisitante(@RequestParam String mail, @RequestParam Integer idUsuario) {
-        boolean registrado = usuariosDAO.registrarVisitante(mail, idUsuario);
-        if (registrado) {
-            return new ResponseEntity<>("Registro exitoso, se ha enviado un correo para completar el proceso.", HttpStatus.OK);
+    public ResponseEntity<String> registrarVisitante(@RequestParam String mail, @RequestParam String alias) {
+        System.out.println("🟢 Iniciando registro de visitante - Email: " + mail + ", Alias: " + alias);
+        
+        // Verificar primero qué campo está duplicado para dar mensaje específico
+        Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(mail);
+        if (usuarioExistentePorCorreo.isPresent()) {
+            System.out.println("🔴 Email ya registrado: " + mail);
+            return new ResponseEntity<>("El email ya está registrado. Por favor elija otro.", HttpStatus.BAD_REQUEST);
         }
-        return new ResponseEntity<>("Alias ya registrado, por favor elija otro.", HttpStatus.BAD_REQUEST);
+
+        // Verificar alias
+        boolean aliasExiste = usuariosRepository.findAll().stream()
+            .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
+        if (aliasExiste) {
+            System.out.println("🔴 Alias ya registrado: " + alias);
+            return new ResponseEntity<>("El alias ya está registrado. Por favor elija otro.", HttpStatus.BAD_REQUEST);
+        }
+
+        // Si ambos están disponibles, proceder con el registro
+        System.out.println("🟡 Validaciones pasadas, registrando visitante...");
+        boolean registrado = usuariosDAO.registrarVisitante(mail, alias);
+        if (registrado) {
+            System.out.println("🟢 Visitante registrado exitosamente - Email: " + mail + ", Alias: " + alias);
+            return new ResponseEntity<>("Te registraste correctamente como visitante. Se enviará un email de confirmación si hay conectividad.", HttpStatus.OK);
+        }
+        System.out.println("🔴 Error interno en el registro del visitante");
+        return new ResponseEntity<>("Error interno en el registro. Intente nuevamente.", HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    //Registro de Usuarios (Etapa 1: envío de código)
+    @PostMapping("/registrarUsuarioEtapa1")
+    public ResponseEntity<String> registrarUsuarioEtapa1(@RequestParam String mail, @RequestParam String alias) {
+        boolean registrado = usuariosDAO.registrarUsuarioEtapa1(mail, alias);
+        if (registrado) {
+            return new ResponseEntity<>("Se ha enviado un código de verificación a tu correo.", HttpStatus.OK);
+        }
+        return new ResponseEntity<>("Email o nickname ya registrado, por favor elija otro.", HttpStatus.BAD_REQUEST);
+    }
+
+    //Verificar código de usuario
+    @PostMapping("/verificarCodigoUsuario")
+    public ResponseEntity<String> verificarCodigoUsuario(@RequestParam String mail, @RequestParam String codigo) {
+        boolean verificado = usuariosDAO.verificarCodigoUsuario(mail, codigo);
+        if (verificado) {
+            return new ResponseEntity<>("Código verificado. Ahora completa tu perfil con contraseña.", HttpStatus.OK);
+        }
+        return new ResponseEntity<>("Código inválido o expirado.", HttpStatus.BAD_REQUEST);
+    }
+
+    //Completar registro de usuario (Etapa 2: datos + contraseña)
+    @PostMapping("/completarRegistroUsuario")
+    public ResponseEntity<String> completarRegistroUsuario(@RequestParam String mail, @RequestParam String nombre, @RequestParam String password) {
+        boolean completado = usuariosDAO.completarRegistroUsuario(mail, nombre, password);
+        if (completado) {
+            return new ResponseEntity<>("Registro completado exitosamente. Ya puedes iniciar sesión.", HttpStatus.OK);
+        }
+        return new ResponseEntity<>("No se pudo completar el registro.", HttpStatus.BAD_REQUEST);
+    }
+
+    //Reenviar código de verificación para usuario
+    @PostMapping("/reenviarCodigoUsuario") 
+    public ResponseEntity<String> reenviarCodigoUsuario(@RequestParam String mail) {
+        boolean enviado = usuariosDAO.enviarCodigoVerificacionUsuario(mail);
+        if (enviado) {
+            return new ResponseEntity<>("Se ha reenviado el código de verificación a tu correo.", HttpStatus.OK);
+        }
+        return new ResponseEntity<>("No se pudo reenviar el código. Verifica tu email.", HttpStatus.BAD_REQUEST);
     }
   
     //Registro de Alumnos
@@ -1789,19 +1863,32 @@ public class Controlador {
     @GetMapping("/auth/check-username")
     public ResponseEntity<Map<String, Object>> checkUsernameAvailability(@RequestParam String username) {
         Map<String, Object> result = new HashMap<>();
-        boolean exists = usuariosRepository.findAll().stream().anyMatch(u -> username.equalsIgnoreCase(u.getNombre()));
-        result.put("available", !exists);
-        if (exists) {
-            List<String> suggestions = new ArrayList<>();
-            String base = username.replaceAll("\\d+$", "");
-            for (int i = 0; i < 3; i++) {
-                suggestions.add(base + (int)(Math.random() * 1000));
+        
+        try {
+            // Verificar si el alias está disponible usando el DAO
+            boolean available = usuariosDAO.isUsernameAvailable(username);
+            result.put("available", available);
+            
+            if (!available) {
+                // Generar sugerencias si el alias no está disponible
+                List<String> suggestions = new ArrayList<>();
+                String base = username.replaceAll("\\d+$", "");
+                for (int i = 0; i < 3; i++) {
+                    suggestions.add(base + (int)(Math.random() * 1000));
+                }
+                suggestions.add(base + LocalDate.now().getYear());
+                suggestions.add(base + "_chef");
+                suggestions.add("chef_" + base);
+                result.put("suggestions", suggestions);
+            } else {
+                result.put("suggestions", new ArrayList<>());
             }
-            suggestions.add(base + LocalDate.now().getYear());
-            result.put("suggestions", suggestions);
-        } else {
+        } catch (Exception e) {
+            result.put("available", true); // Por defecto permitir si hay error
             result.put("suggestions", new ArrayList<>());
+            result.put("error", e.getMessage());
         }
+        
         return ResponseEntity.ok(result);
     }
 

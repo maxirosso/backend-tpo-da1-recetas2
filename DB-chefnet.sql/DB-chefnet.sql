@@ -333,3 +333,27 @@ VALUES
 -- PRIMERO: Corregir la estructura de la tabla sedes (falta una coma)
 ALTER TABLE sedes ADD CONSTRAINT temp_check CHECK (1=1);
 ALTER TABLE sedes DROP CONSTRAINT temp_check;
+
+
+
+-- Crear tabla para códigos de verificación
+CREATE TABLE verification_codes (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    code VARCHAR(6) NOT NULL,
+    created_at DATETIME2 DEFAULT GETDATE(),
+    expires_at DATETIME2 NOT NULL,
+    used BIT DEFAULT 0
+);
+
+-- Crear índices para la tabla verification_codes
+CREATE INDEX idx_email ON verification_codes (email);
+CREATE INDEX idx_expires ON verification_codes (expires_at);
+
+-- Agregar campos de estado a usuarios
+ALTER TABLE usuarios 
+ADD registration_status VARCHAR(20) DEFAULT 'pending'
+CHECK (registration_status IN ('pending', 'incomplete', 'complete'));
+
+ALTER TABLE usuarios 
+ADD verification_code_sent_at DATETIME2 NULL;

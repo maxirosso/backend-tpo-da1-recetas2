@@ -24,11 +24,14 @@ public class SecurityConfig {
             .cors(cors -> cors.configure(http))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
-                // Public endpoints that don't require authentication
+                // Endpoints que no requieren autenticación publicos
+                .requestMatchers(new AntPathRequestMatcher("/")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/login")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/registrarUsuario")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/registrarAlumno")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/registrarVisitante")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test-email")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/auth/check-username")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/**")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/usuarios/perfil")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/recuperarClave")).permitAll()
@@ -36,6 +39,20 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/recetas/buscar/**")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/recetas/publicas")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/cursos/publicos")).permitAll()
+                // Recipe-related endpoints that visitors should access
+                .requestMatchers(new AntPathRequestMatcher("/getValoracionReceta/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/getRecetaById/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/getNombrereceta")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/getTiporeceta")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/getIngredienteReceta")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/getSinIngredienteReceta")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/getUsuarioReceta")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/getAllRecetas")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/sugerenciasRecetas")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/buscarRecetas")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/getTiposReceta")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/ingredientes")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/buscarRecetasSinIngredientes")).permitAll()
                 // Temporarily allow enrollment endpoint for debugging
                 .requestMatchers(new AntPathRequestMatcher("/inscribirseACurso")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/getCursosDisponibles")).permitAll()
