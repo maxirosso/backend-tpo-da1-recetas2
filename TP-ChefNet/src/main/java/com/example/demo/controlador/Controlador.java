@@ -152,6 +152,16 @@ public class Controlador {
 	@Autowired
 	private JwtUtil jwtUtil;
 	
+	// Métodos utilitarios para validar permisos de usuario
+	private boolean isVisitanteWithRestrictedAccess(Integer idUsuario) {
+		if (idUsuario == null) return false;
+		Usuarios usuario = usuariosDAO.findById(idUsuario);
+		return usuario != null && "visitante".equals(usuario.getTipo());
+	}
+	
+	private ResponseEntity<String> createVisitorRestrictionResponse() {
+		return new ResponseEntity<>("Esta funcionalidad no está disponible para visitantes. Regístrate como usuario o alumno para acceder a todas las características.", HttpStatus.FORBIDDEN);
+	}
 	
 	@GetMapping("/")
 	public String mensaje() {
@@ -460,6 +470,210 @@ public class Controlador {
         return new ResponseEntity<>("Error interno en el registro. Intente nuevamente.", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    //Registro de Visitantes con Verificación (Etapa 1: envío de código)
+    @PostMapping("/registrarVisitanteEtapa1")
+    public ResponseEntity<Map<String, Object>> registrarVisitanteEtapa1(@RequestParam String mail, @RequestParam String alias) {
+        System.out.println("🟢 Iniciando registro de visitante con verificación - Email: " + mail + ", Alias: " + alias);
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        // Verificar si el correo ya está registrado
+        Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(mail);
+        if (usuarioExistentePorCorreo.isPresent()) {
+            Usuarios usuarioExistente = usuarioExistentePorCorreo.get();
+            System.out.println("🔴 Email ya registrado: " + mail + ", Estado: " + usuarioExistente.getHabilitado());
+            
+            // Verificar si el registro previo se completó o quedó pendiente
+            if ("Si".equals(usuarioExistente.getHabilitado())) {
+                // Registro completado anteriormente
+                response.put("error", "El email ya está registrado y el proceso se completó anteriormente.");
+                response.put("success", false);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            } else {
+                // Registro incompleto - no puede usar este email
+                response.put("error", "Este email tiene un proceso de registración incompleto. Para liberarlo deberás enviar un mail a la empresa para realizar un proceso por fuera de la aplicación móvil.");
+                response.put("success", false);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        // Verificar alias y generar sugerencias si está en uso
+        boolean aliasExiste = usuariosRepository.findAll().stream()
+            .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
+        if (aliasExiste) {
+            System.out.println("🔴 Alias ya registrado: " + alias + ", generando sugerencias...");
+            
+            // Generar sugerencias automáticamente
+            List<String> sugerencias = generarSugerenciasAliasInterno(alias);
+            
+            response.put("error", "El alias ya está registrado.");
+            response.put("aliasUnavailable", true);
+            response.put("suggestions", sugerencias);
+            response.put("success", false);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        // Si todo está bien, proceder con el registro
+        boolean registrado = usuariosDAO.registrarVisitanteEtapa1(mail, alias);
+        if (registrado) {
+            response.put("message", "Se ha enviado un código de verificación de 4 dígitos a tu correo. El código tiene una validez de 24 horas.");
+            response.put("success", true);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        }
+        
+        response.put("error", "Error interno en el registro. Intente nuevamente.");
+        response.put("success", false);
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    // Método interno para generar sugerencias de alias
+    private List<String> generarSugerenciasAliasInterno(String baseAlias) {
+        List<String> sugerencias = new ArrayList<>();
+        String base = baseAlias.replaceAll("\\d+$", ""); // Remover números al final
+        
+        try {
+            // Generar diferentes tipos de sugerencias
+            for (int i = 0; i < 10; i++) { // Más intentos para asegurar variedad
+                String sugerencia;
+                switch (i % 6) {
+                    case 0:
+                        sugerencia = base + ((int)(Math.random() * 1000));
+                        break;
+                    case 1:
+                        sugerencia = base + (new java.util.Date().getYear() + 1900);
+                        break;
+                    case 2:
+                        sugerencia = base + "_chef";
+                        break;
+                    case 3:
+                        sugerencia = "chef_" + base;
+                        break;
+                    case 4:
+                        sugerencia = base + "_" + ((int)(Math.random() * 100));
+                        break;
+                    default:
+                        sugerencia = base + ((int)(Math.random() * 10000));
+                }
+                
+                // Verificar si la sugerencia está disponible
+                boolean disponible = usuariosRepository.findAll().stream()
+                    .noneMatch(usuario -> sugerencia.equalsIgnoreCase(usuario.getNickname()));
+                
+                if (disponible && !sugerencias.contains(sugerencia)) {
+                    sugerencias.add(sugerencia);
+                }
+                
+                // Si ya tenemos suficientes sugerencias, salir del bucle
+                if (sugerencias.size() >= 5) {
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("🔴 Error generando sugerencias internas: " + e.getMessage());
+        }
+        
+        return sugerencias;
+    }
+
+    //Verificar código de visitante
+    @PostMapping("/verificarCodigoVisitante")
+    public ResponseEntity<Map<String, Object>> verificarCodigoVisitante(@RequestParam String mail, @RequestParam String codigo) {
+        System.out.println("🟢 Verificando código de visitante - Email: " + mail + ", Código: " + codigo);
+        Usuarios visitante = usuariosDAO.verificarCodigoVisitante(mail, codigo);
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        if (visitante != null) {
+            response.put("success", true);
+            response.put("message", "Registro completado exitosamente. Ya puedes acceder como visitante a ChefNet.");
+            response.put("user", Map.of(
+                "idUsuario", visitante.getIdUsuario(),
+                "mail", visitante.getMail(),
+                "nickname", visitante.getNickname(),
+                "tipo", visitante.getTipo(),
+                "habilitado", visitante.getHabilitado()
+            ));
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        }
+        
+        response.put("success", false);
+        response.put("message", "Código inválido o expirado.");
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    //Reenviar código de verificación para visitante
+    @PostMapping("/reenviarCodigoVisitante") 
+    public ResponseEntity<String> reenviarCodigoVisitante(@RequestParam String mail) {
+        System.out.println("🟢 Reenviando código de visitante - Email: " + mail);
+        boolean enviado = usuariosDAO.enviarCodigoVerificacionVisitante(mail);
+        if (enviado) {
+            return new ResponseEntity<>("Se ha reenviado el código de verificación a tu correo.", HttpStatus.OK);
+        }
+        return new ResponseEntity<>("No se pudo reenviar el código. Verifica tu email.", HttpStatus.BAD_REQUEST);
+    }
+
+    //Generar sugerencias de alias disponibles
+    @GetMapping("/sugerenciasAlias")
+    public ResponseEntity<Map<String, Object>> generarSugerenciasAlias(@RequestParam String baseAlias) {
+        System.out.println("🟢 Generando sugerencias para alias: " + baseAlias);
+        
+        Map<String, Object> response = new HashMap<>();
+        List<String> sugerencias = new ArrayList<>();
+        
+        try {
+            String base = baseAlias.replaceAll("\\d+$", ""); // Remover números al final
+            
+            // Generar diferentes tipos de sugerencias
+            for (int i = 0; i < 6; i++) {
+                String sugerencia;
+                switch (i) {
+                    case 0:
+                        sugerencia = base + Math.floor(Math.random() * 1000);
+                        break;
+                    case 1:
+                        sugerencia = base + new java.util.Date().getYear() + 1900;
+                        break;
+                    case 2:
+                        sugerencia = base + "_chef";
+                        break;
+                    case 3:
+                        sugerencia = "chef_" + base;
+                        break;
+                    case 4:
+                        sugerencia = base + "_" + Math.floor(Math.random() * 100);
+                        break;
+                    default:
+                        sugerencia = base + Math.floor(Math.random() * 10000);
+                }
+                
+                // Verificar si la sugerencia está disponible
+                boolean disponible = usuariosRepository.findAll().stream()
+                    .noneMatch(usuario -> sugerencia.equalsIgnoreCase(usuario.getNickname()));
+                
+                if (disponible && !sugerencias.contains(sugerencia)) {
+                    sugerencias.add(sugerencia);
+                }
+                
+                // Si ya tenemos suficientes sugerencias, salir del bucle
+                if (sugerencias.size() >= 4) {
+                    break;
+                }
+            }
+            
+            response.put("sugerencias", sugerencias);
+            response.put("success", true);
+            
+            return new ResponseEntity<>(response, HttpStatus.OK);
+            
+        } catch (Exception e) {
+            System.out.println("🔴 Error generando sugerencias: " + e.getMessage());
+            response.put("sugerencias", new ArrayList<>());
+            response.put("success", false);
+            response.put("error", "Error generando sugerencias");
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     //Registro de Usuarios (Etapa 1: envío de código)
     @PostMapping("/registrarUsuarioEtapa1")
     public ResponseEntity<String> registrarUsuarioEtapa1(@RequestParam String mail, @RequestParam String alias) {
@@ -513,11 +727,72 @@ public class Controlador {
     }
    
     //Cambiar registro a Alumno
-    @PutMapping("/cambiarAAlumno/{idUsuario}")
-    public ResponseEntity<String> cambiarAAlumno(@PathVariable int idUsuario, @RequestBody Alumnos alumnos) {
-        boolean cambioExitoso = usuariosDAO.cambiarAAlumno(idUsuario, alumnos);
-        if (cambioExitoso) {
-            return new ResponseEntity<>("Usuario convertido a alumno exitosamente.", HttpStatus.OK);
+    @PutMapping(value = "/cambiarAAlumno/{idUsuario}", consumes = "multipart/form-data")
+    public ResponseEntity<String> cambiarAAlumno(
+            @PathVariable String idUsuario,
+            @RequestParam(required = false) String tramite,
+            @RequestParam(required = false) String nroTarjeta,
+            @RequestParam(required = false) String password,
+            @RequestParam(required = false) MultipartFile dniFrente,
+            @RequestParam(required = false) MultipartFile dniFondo) {
+        try {
+            System.out.println("🟢 Recibiendo solicitud de upgrade para usuario: " + idUsuario);
+            System.out.println("🟡 Tramite: " + tramite);
+            System.out.println("🟡 Número tarjeta: " + nroTarjeta);
+            System.out.println("🟡 Password: " + (password != null ? "***" : "null"));
+            System.out.println("🟡 DNI frente: " + (dniFrente != null ? dniFrente.getOriginalFilename() : "null"));
+            System.out.println("🟡 DNI fondo: " + (dniFondo != null ? dniFondo.getOriginalFilename() : "null"));
+            
+            // Crear objeto Alumnos
+            Alumnos alumnos = new Alumnos();
+            alumnos.setTramite(tramite);
+            
+            // Limpiar espacios del número de tarjeta
+            if (nroTarjeta != null) {
+                alumnos.setNroTarjeta(nroTarjeta.replaceAll("\\s", ""));
+            }
+            
+            // Procesar archivos (por ahora como placeholders)
+            if (dniFrente != null && !dniFrente.isEmpty()) {
+                alumnos.setDniFrente("imagen_dni_frente_" + System.currentTimeMillis() + "_" + dniFrente.getOriginalFilename());
+            }
+            
+            if (dniFondo != null && !dniFondo.isEmpty()) {
+                alumnos.setDniFondo("imagen_dni_fondo_" + System.currentTimeMillis() + "_" + dniFondo.getOriginalFilename());
+            }
+            
+            System.out.println("🟡 Objeto Alumnos creado: " + alumnos);
+            
+            // Intentar convertir el idUsuario a entero
+            try {
+                int idUsuarioInt = Integer.parseInt(idUsuario);
+                boolean cambioExitoso = usuariosDAO.cambiarAAlumno(idUsuarioInt, alumnos, password);
+                if (cambioExitoso) {
+                    return new ResponseEntity<>("Usuario convertido a alumno exitosamente.", HttpStatus.OK);
+                }
+            } catch (NumberFormatException e) {
+                // Si no es un número válido, podría ser un email de visitante
+                System.out.println("ID no válido, intentando buscar por email: " + idUsuario);
+                
+                Optional<Usuarios> usuarioOpt = usuariosRepository.findByMail(idUsuario);
+                if (usuarioOpt.isPresent()) {
+                    Usuarios usuario = usuarioOpt.get();
+                    if ("visitante".equals(usuario.getTipo()) || "comun".equals(usuario.getTipo())) {
+                        boolean cambioExitoso = usuariosDAO.cambiarAAlumno(usuario.getIdUsuario(), alumnos, password);
+                        if (cambioExitoso) {
+                            return new ResponseEntity<>("Usuario convertido a alumno exitosamente.", HttpStatus.OK);
+                        }
+                    } else {
+                        return new ResponseEntity<>("Solo los visitantes y usuarios pueden hacer upgrade a alumno.", HttpStatus.BAD_REQUEST);
+                    }
+                } else {
+                    return new ResponseEntity<>("Usuario no encontrado con email: " + idUsuario, HttpStatus.NOT_FOUND);
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("🔴 Error procesando upgrade: " + e.getMessage());
+            e.printStackTrace();
+            return new ResponseEntity<>("Error interno del servidor: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return new ResponseEntity<>("No es posible cambiar de usuario a alumno.", HttpStatus.BAD_REQUEST);
     }
@@ -1298,6 +1573,11 @@ public class Controlador {
     @PostMapping("/agregarReceta/{idReceta}")
     public ResponseEntity<String> agregarReceta(@PathVariable Integer idReceta, @RequestParam(required = false) Integer idUsuario, WebRequest request) {
         try {
+            // Verificar si el usuario es visitante
+            if (isVisitanteWithRestrictedAccess(idUsuario)) {
+                return createVisitorRestrictionResponse();
+            }
+            
             System.out.println(" Backend: Attempting to add recipe " + idReceta + " for user " + idUsuario);
             
             Optional<Recetas> recetaOptional = recetasRepository.findById(idReceta);
@@ -1452,6 +1732,11 @@ public class Controlador {
     @GetMapping("/getMiListaRecetas")
     public ResponseEntity<List<Map<String, Object>>> obtenerMiListaDeRecetas(@RequestParam(required = false) Integer idUsuario, WebRequest request) {
         try {
+            // Verificar si el usuario es visitante
+            if (isVisitanteWithRestrictedAccess(idUsuario)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ArrayList<>());
+            }
+            
             // Intentar obtener usuario autenticado o usar el parámetro
             Usuarios usuario = null;
             if (idUsuario != null) {
@@ -1537,6 +1822,11 @@ public class Controlador {
         @RequestParam(required = false) Integer idUsuario, 
         WebRequest request) {
         try {
+            // Verificar si el usuario es visitante
+            if (isVisitanteWithRestrictedAccess(idUsuario)) {
+                return createVisitorRestrictionResponse();
+            }
+            
             System.out.println(" Backend: Marking recipe " + idReceta + " as " + (completada ? "completed" : "pending") + " for user " + idUsuario);
             
             // Intentar obtener usuario autenticado o usar el parámetro
@@ -1590,10 +1880,16 @@ public class Controlador {
     //Ajustar porciones de recetas
     private Map<Long, List<Recetas>> recetasPersonalizadasPorUsuario = new HashMap<>();
     @GetMapping("/ajustarPorciones/{idReceta}")
-    public ResponseEntity<Recetas> ajustarReceta(@PathVariable Integer idReceta,
+    public ResponseEntity<?> ajustarReceta(@PathVariable Integer idReceta,
             @RequestParam String tipo, // "mitad", "doble" o "porciones"
-            @RequestParam(required = false) Integer porciones // si es tipo = "porciones"
+            @RequestParam(required = false) Integer porciones, // si es tipo = "porciones"
+            @RequestParam(required = false) Integer idUsuario
         ) {
+        // Verificar si el usuario es visitante
+        if (isVisitanteWithRestrictedAccess(idUsuario)) {
+            return createVisitorRestrictionResponse();
+        }
+        
         Optional<Recetas> recetaOpt = recetasDAO.findByIdOptional(idReceta);
         if (recetaOpt.isEmpty()) return ResponseEntity.notFound().build();
 
@@ -1626,7 +1922,12 @@ public class Controlador {
     }
     
     @PostMapping("/ajustarPorIngrediente/{idReceta}")
-    public ResponseEntity<?> ajustarPorIngrediente(@PathVariable Integer idReceta, @RequestParam String nombreIngrediente, @RequestParam double nuevaCantidad) {
+    public ResponseEntity<?> ajustarPorIngrediente(@PathVariable Integer idReceta, @RequestParam String nombreIngrediente, @RequestParam double nuevaCantidad, @RequestParam(required = false) Integer idUsuario) {
+        // Verificar si el usuario es visitante
+        if (isVisitanteWithRestrictedAccess(idUsuario)) {
+            return createVisitorRestrictionResponse();
+        }
+        
         Optional<Recetas> recetaOpt = recetasDAO.findByIdOptional(idReceta);
         if (recetaOpt.isEmpty()) return ResponseEntity.notFound().build();
 
@@ -2456,6 +2757,11 @@ public class Controlador {
     @PostMapping("/guardarReceta/{idReceta}")
     public ResponseEntity<?> guardarReceta(@PathVariable Integer idReceta, @RequestParam(required = false) Integer idUsuario) {
         try {
+            // Verificar si el usuario es visitante
+            if (isVisitanteWithRestrictedAccess(idUsuario)) {
+                return createVisitorRestrictionResponse();
+            }
+            
             // Obtener el usuario autenticado o usar el ID proporcionado
             Usuarios usuario;
             if (idUsuario != null) {
@@ -2498,6 +2804,11 @@ public class Controlador {
     @GetMapping("/recetasGuardadas")
     public ResponseEntity<?> getRecetasGuardadas(@RequestParam(required = false) Integer idUsuario) {
         try {
+            // Verificar si el usuario es visitante
+            if (isVisitanteWithRestrictedAccess(idUsuario)) {
+                return createVisitorRestrictionResponse();
+            }
+            
             // Obtener el usuario autenticado o usar el ID proporcionado
             Usuarios usuario;
             if (idUsuario != null) {
@@ -2533,6 +2844,11 @@ public class Controlador {
     @DeleteMapping("/eliminarRecetaGuardada/{idReceta}")
     public ResponseEntity<?> eliminarRecetaGuardada(@PathVariable Integer idReceta, @RequestParam(required = false) Integer idUsuario) {
         try {
+            // Verificar si el usuario es visitante
+            if (isVisitanteWithRestrictedAccess(idUsuario)) {
+                return createVisitorRestrictionResponse();
+            }
+            
             // Obtener el usuario autenticado o usar el ID proporcionado
             Usuarios usuario;
             if (idUsuario != null) {

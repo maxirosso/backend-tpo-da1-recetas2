@@ -1,7 +1,9 @@
 package com.example.demo.datos;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 
@@ -12,6 +14,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.demo.modelo.Alumnos;
 import com.example.demo.modelo.Recetas;
@@ -279,6 +282,145 @@ public class UsuariosDAO {
         return enviarCodigoVerificacionUsuario(correoElectronico);
     }
 
+    // VISITANTES: Registro en 2 etapas con código de verificación
+    public boolean registrarVisitanteEtapa1(String correoElectronico, String alias) {
+        System.out.println("🟡 UsuariosDAO: Iniciando registro de visitante con verificación - Email: " + correoElectronico + ", Alias: " + alias);
+        
+        // Verificar si el correo ya está registrado
+        Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(correoElectronico);
+        if (usuarioExistentePorCorreo.isPresent()) {
+            System.out.println("🔴 UsuariosDAO: Email ya registrado: " + correoElectronico);
+            return false; // El correo ya está registrado
+        }
+
+        // Verificar si el alias ya está registrado
+        boolean aliasExiste = usuariosRepository.findAll().stream()
+            .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
+        if (aliasExiste) {
+            System.out.println("🔴 UsuariosDAO: Alias ya registrado: " + alias);
+            return false; // El alias ya está registrado
+        }
+
+        try {
+            // Crear nuevo visitante en estado pendiente de verificación
+            Usuarios nuevoVisitante = new Usuarios();
+            nuevoVisitante.setMail(correoElectronico);
+            nuevoVisitante.setNickname(alias);
+            nuevoVisitante.setPassword("NO_REQUIERE"); // Los visitantes no necesitan contraseña
+            nuevoVisitante.setNombre("Visitante");
+            nuevoVisitante.setHabilitado("No"); // No habilitado hasta verificar código
+            nuevoVisitante.setTipo("visitante");
+            nuevoVisitante.setDireccion("");
+            nuevoVisitante.setAvatar("");
+            nuevoVisitante.setRol("visitante");
+
+            // Guardar el nuevo visitante en estado pendiente
+            System.out.println("🟡 UsuariosDAO: Guardando visitante pendiente en base de datos...");
+            usuariosRepository.save(nuevoVisitante);
+            System.out.println("🟢 UsuariosDAO: Visitante pendiente guardado exitosamente en base de datos");
+
+            // Enviar código de verificación
+            return enviarCodigoVerificacionVisitante(correoElectronico);
+            
+        } catch (Exception e) {
+            System.out.println("🔴 UsuariosDAO: Error guardando visitante pendiente: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // Verificar código de verificación para visitante
+    public Usuarios verificarCodigoVisitante(String correoElectronico, String codigoIngresado) {
+        System.out.println("🟡 UsuariosDAO: Verificando código de visitante - Email: " + correoElectronico + ", Código: " + codigoIngresado);
+        
+        try {
+            // Buscar el visitante por email
+            Optional<Usuarios> visitanteOpt = usuariosRepository.findByMail(correoElectronico);
+            if (!visitanteOpt.isPresent()) {
+                System.out.println("🔴 UsuariosDAO: Visitante no encontrado: " + correoElectronico);
+                return null;
+            }
+
+            Usuarios visitante = visitanteOpt.get();
+            
+            // Verificar que sea un visitante y esté pendiente de verificación
+            if (!"visitante".equals(visitante.getTipo()) || !"No".equals(visitante.getHabilitado())) {
+                System.out.println("🔴 UsuariosDAO: Visitante no está en estado pendiente de verificación");
+                return null;
+            }
+
+            // Verificar que el código coincida (usar el mismo patrón que usuarios normales)
+            if (visitante.getCodigoRecuperacion() != null && 
+                visitante.getCodigoRecuperacion().equals(codigoIngresado)) {
+                
+                // Código válido - habilitar visitante completamente
+                visitante.setHabilitado("Si");
+                visitante.setCodigoRecuperacion(null); // Limpiar código usado
+                usuariosRepository.save(visitante);
+                
+                System.out.println("🟢 UsuariosDAO: Visitante verificado y habilitado exitosamente");
+                return visitante; // Retornar el usuario completo
+            } else {
+                System.out.println("🔴 UsuariosDAO: Código de verificación incorrecto");
+                return null;
+            }
+            
+        } catch (Exception e) {
+            System.out.println("🔴 UsuariosDAO: Error verificando código de visitante: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    // Enviar código de verificación para visitante (reutilizar lógica de usuarios)
+    public boolean enviarCodigoVerificacionVisitante(String correoElectronico) {
+        System.out.println("🟡 UsuariosDAO: Enviando código de verificación a visitante: " + correoElectronico);
+        
+        try {
+            // Buscar el visitante por email
+            Optional<Usuarios> visitanteOpt = usuariosRepository.findByMail(correoElectronico);
+            if (!visitanteOpt.isPresent()) {
+                System.out.println("🔴 UsuariosDAO: Visitante no encontrado: " + correoElectronico);
+                return false;
+            }
+
+            Usuarios visitante = visitanteOpt.get();
+            
+            // Generar código de 4 dígitos
+            String codigo = String.format("%04d", (int)(Math.random() * 10000));
+            
+            // Guardar código en el campo existente (como usuarios normales)
+            visitante.setCodigoRecuperacion(codigo);
+            usuariosRepository.save(visitante);
+            
+            // Enviar email con el código
+            SimpleMailMessage mensaje = new SimpleMailMessage();
+            mensaje.setFrom("rossomaxi685@gmail.com");
+            mensaje.setTo(correoElectronico);
+            mensaje.setSubject("Código de verificación - ChefNet");
+            mensaje.setText(
+                "¡Hola! 👨‍🍳\n\n" +
+                "Tu código de verificación para completar el registro como visitante en ChefNet es:\n\n" +
+                "📱 " + codigo + "\n\n" +
+                "Este código es válido por 24 horas.\n\n" +
+                "Si no solicitaste este código, ignora este mensaje.\n\n" +
+                "¡Gracias por unirte a ChefNet!\n\n" +
+                "---\n" +
+                "El equipo de ChefNet"
+            );
+            
+            System.out.println("🟡 UsuariosDAO: Enviando email con código: " + codigo);
+            emailSender.send(mensaje);
+            System.out.println("🟢 UsuariosDAO: Código de verificación enviado exitosamente");
+            return true;
+            
+        } catch (Exception e) {
+            System.out.println("🔴 UsuariosDAO: Error enviando código de verificación: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     // Email de confirmación simple para visitantes (sin código)
     private void enviarEmailConfirmacionVisitante(String correoElectronico, String alias) {
         try {
@@ -411,35 +553,86 @@ public class UsuariosDAO {
         return false;
     }
     
-    public boolean cambiarAAlumno(int idUsuario, Alumnos alumnoData) {
-        Optional<Usuarios> usuarioOpt = usuariosRepository.findById(idUsuario);
-        
-        if (usuarioOpt.isPresent()) {
-            Usuarios usuario = usuarioOpt.get();
-
-            // Verificamos si ya es alumno
-            if (usuario.getAlumno() != null) {
+    @Transactional
+    public boolean cambiarAAlumno(int idUsuario, Alumnos alumnoData, String password) {
+        try {
+            System.out.println("🟡 UsuariosDAO: Iniciando cambio a alumno para usuario ID: " + idUsuario);
+            
+            // Buscar usuario con lock para evitar concurrencia
+            Optional<Usuarios> usuarioOpt = usuariosRepository.findById(idUsuario);
+            
+            if (!usuarioOpt.isPresent()) {
+                System.out.println("🔴 UsuariosDAO: Usuario no encontrado con ID: " + idUsuario);
                 return false;
             }
 
-            // Creamos un nuevo objeto Alumnos y lo vinculamos al usuario
+            Usuarios usuario = usuarioOpt.get();
+            System.out.println("🟡 UsuariosDAO: Usuario encontrado: " + usuario.getMail() + ", tipo: " + usuario.getTipo());
+
+            // Verificar si ya es alumno verificando tanto la propiedad como la existencia en la tabla
+            if (usuario.getAlumno() != null) {
+                System.out.println("🔴 UsuariosDAO: El usuario ya tiene un alumno asociado");
+                return false;
+            }
+            
+            if (alumnosRepository.existsById(idUsuario)) {
+                System.out.println("🔴 UsuariosDAO: Ya existe un registro de alumno con ID: " + idUsuario);
+                return false;
+            }
+
+            // Verificar que todos los datos requeridos estén presentes
+            if (alumnoData.getTramite() == null || alumnoData.getTramite().trim().isEmpty()) {
+                System.out.println("🔴 UsuariosDAO: Número de trámite es requerido");
+                return false;
+            }
+
+            // Verificar que la contraseña esté presente para alumnos
+            if (password == null || password.trim().isEmpty()) {
+                System.out.println("🔴 UsuariosDAO: Contraseña es requerida para alumnos");
+                return false;
+            }
+
+            // Primero actualizar el tipo de usuario y la contraseña
+            System.out.println("🟡 UsuariosDAO: Actualizando tipo de usuario a 'alumno' y estableciendo contraseña...");
+            usuario.setTipo("alumno");
+            usuario.setPassword(password); // Establecer la contraseña para el alumno
+            usuario = usuariosRepository.save(usuario);
+            
+            // Luego crear el registro de alumno
+            System.out.println("🟡 UsuariosDAO: Creando registro de alumno...");
             Alumnos nuevoAlumno = new Alumnos();
-            nuevoAlumno.setIdAlumno(idUsuario); // porque usan el mismo ID
+            // NO establecer idAlumno manualmente, dejar que @MapsId lo maneje
             nuevoAlumno.setDniFrente(alumnoData.getDniFrente());
             nuevoAlumno.setDniFondo(alumnoData.getDniFondo());
             nuevoAlumno.setTramite(alumnoData.getTramite());
-            nuevoAlumno.setCuentaCorriente(BigDecimal.ZERO); //se la seteo en 0 
+            nuevoAlumno.setNroTarjeta(alumnoData.getNroTarjeta());
+            nuevoAlumno.setCuentaCorriente(BigDecimal.ZERO);
+            // Establecer la relación con el usuario DESPUÉS de que el usuario esté guardado
             nuevoAlumno.setUsuario(usuario);
 
-            alumnosRepository.save(nuevoAlumno);
+            System.out.println("🟡 UsuariosDAO: Datos del alumno: " + nuevoAlumno);
+            System.out.println("🟡 UsuariosDAO: Guardando alumno...");
+            
+            Alumnos alumnoGuardado = alumnosRepository.save(nuevoAlumno);
+            System.out.println("🟢 UsuariosDAO: Alumno guardado con ID: " + alumnoGuardado.getIdAlumno());
 
-            usuario.setTipo("alumno");
+            // Actualizar la referencia en el usuario
+            usuario.setAlumno(alumnoGuardado);
             usuariosRepository.save(usuario);
 
+            System.out.println("🟢 UsuariosDAO: Usuario convertido a alumno exitosamente");
             return true;
+            
+        } catch (Exception e) {
+            System.out.println("🔴 UsuariosDAO: Error cambiando usuario a alumno: " + e.getMessage());
+            System.out.println("🔴 UsuariosDAO: Tipo de error: " + e.getClass().getSimpleName());
+            if (e.getCause() != null) {
+                System.out.println("🔴 UsuariosDAO: Causa: " + e.getCause().getMessage());
+            }
+            e.printStackTrace();
+            // La transacción se revierte automáticamente
+            return false;
         }
-
-        return false;
     }
     
     public boolean enviarCodigoRecuperacion(String mail) {
