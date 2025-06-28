@@ -12,6 +12,7 @@ CREATE TABLE usuarios (
 	tipo VARCHAR(50) NULL,
 	medio_pago VARCHAR(100) NULL,
 	codigo_recuperacion VARCHAR(10) NULL,
+	verification_code_sent_at DATETIME2 NULL,
 	rol VARCHAR(20) null 
 );
 

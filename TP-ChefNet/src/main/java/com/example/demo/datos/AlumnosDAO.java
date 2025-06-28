@@ -73,38 +73,50 @@ public class AlumnosDAO {
                 usuario.setTipo("alumno");
                 usuario.setHabilitado("no"); // Se habilitará después de verificar email
                 usuario.setMedioPago(medioPago != null ? medioPago : "");
-                
-                // Establecer valores predeterminados para campos requeridos
                 usuario.setPassword("temp123"); // Contraseña temporal - se cambiará en verificación
                 usuario.setNombre("Alumno Nuevo"); // Nombre temporal - se cambiará en verificación  
                 usuario.setDireccion("");
                 usuario.setAvatar("");
                 usuario.setNickname("alumno" + System.currentTimeMillis()); // Nickname único temporal
                 usuario.setRol("user");
-                
                 usuario = usuariosRepository.save(usuario);
                 System.out.println("Nuevo usuario creado como alumno con ID: " + usuario.getIdUsuario());
             }
             
             // Crear registro de alumno
             Alumnos nuevoAlumno = new Alumnos();
-            // Con @MapsId, el idAlumno se asigna automáticamente desde el usuario
             nuevoAlumno.setNroTarjeta(medioPago != null ? medioPago : ""); 
             nuevoAlumno.setDniFrente(dniFrente != null ? dniFrente : "");
             nuevoAlumno.setDniFondo(dniFondo != null ? dniFondo : "");
             nuevoAlumno.setTramite(tramite != null ? tramite : "");
             nuevoAlumno.setCuentaCorriente(BigDecimal.ZERO);
             nuevoAlumno.setUsuario(usuario);
-            
             alumnosRepository.save(nuevoAlumno);
             System.out.println("Alumno registrado exitosamente con ID: " + nuevoAlumno.getIdAlumno());
-            
-            // Enviar correo de confirmación
+
+            // Generar código de verificación de 4 dígitos
+            String codigo = String.format("%04d", new java.util.Random().nextInt(10000));
+            usuario.setCodigoRecuperacion(codigo);
+            usuario.setVerificationCodeSentAt(java.time.LocalDateTime.now());
+            usuariosRepository.save(usuario);
+
+            // Enviar email con el código de verificación
             try {
-                enviarCorreoDeConfirmacion(mail);
-                System.out.println("Correo de confirmación enviado");
+                MimeMessage message = emailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true);
+                helper.setTo(mail);
+                helper.setSubject("Código de verificación - ChefNet");
+                helper.setText("¡Bienvenido a ChefNet! 👨‍🍳\n\n" +
+                    "Para completar tu registro como alumno, necesitamos verificar tu email.\n\n" +
+                    "Tu código de verificación es: " + codigo + "\n\n" +
+                    "⏰ Este código es válido por 24 horas.\n" +
+                    "🔒 Por tu seguridad, no compartas este código con nadie.\n\n" +
+                    "Una vez verificado, podrás completar tu perfil con contraseña y datos adicionales.\n\n" +
+                    "¡Gracias por unirte a ChefNet!\n\n---\nEl equipo de ChefNet");
+                emailSender.send(message);
+                System.out.println("Correo de verificación enviado con código: " + codigo);
             } catch (Exception emailError) {
-                System.out.println("Error enviando correo, pero registro exitoso: " + emailError.getMessage());
+                System.out.println("Error enviando correo de verificación: " + emailError.getMessage());
                 // No fallar el registro por error de email
             }
             

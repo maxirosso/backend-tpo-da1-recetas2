@@ -808,6 +808,44 @@ public class Controlador {
         return new ResponseEntity<>("Correo no encontrado en el sistema.", HttpStatus.BAD_REQUEST);
     }
 
+    // Verificar código de recuperación de contraseña
+    @PostMapping("/verificarCodigoRecuperacion")
+    public ResponseEntity<Map<String, Object>> verificarCodigoRecuperacion(@RequestParam String mail, @RequestParam String codigo) {
+        boolean valido = usuariosDAO.verificarCodigoRecuperacion(mail, codigo);
+        Map<String, Object> response = new HashMap<>();
+        
+        if (valido) {
+            response.put("success", true);
+            response.put("message", "Código válido. Puedes proceder a cambiar tu contraseña.");
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } else {
+            response.put("success", false);
+            response.put("message", "Código inválido o expirado. Los códigos de recuperación tienen una validez de 30 minutos.");
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    // Cambiar contraseña con código de recuperación
+    @PostMapping("/cambiarContrasenaConCodigo")
+    public ResponseEntity<Map<String, Object>> cambiarContrasenaConCodigo(
+        @RequestParam String mail, 
+        @RequestParam String codigo, 
+        @RequestParam String nuevaPassword) {
+        
+        boolean cambiado = usuariosDAO.cambiarContrasenaConCodigo(mail, codigo, nuevaPassword);
+        Map<String, Object> response = new HashMap<>();
+        
+        if (cambiado) {
+            response.put("success", true);
+            response.put("message", "Tu contraseña ha sido cambiada exitosamente. Ya puedes iniciar sesión con la nueva contraseña.");
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } else {
+            response.put("success", false);
+            response.put("message", "No se pudo cambiar la contraseña. Verifica que el código sea válido y no haya expirado.");
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+    }
+
 	
 	//publicar/cargar recetas
 	@PostMapping("/publicarRecetas")

@@ -1,5 +1,6 @@
 package com.example.demo.modelo;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -42,6 +43,9 @@ public class Usuarios {
 
 	@Column(name = "codigo_recuperacion")
 	private String codigoRecuperacion;
+	
+	@Column(name = "verification_code_sent_at")
+	private LocalDateTime verificationCodeSentAt;
 	
 	@Column(name = "tipo")
 	private String tipo;
@@ -168,6 +172,13 @@ public class Usuarios {
 	    this.codigoRecuperacion = codigoRecuperacion;
 	}
 	
+	public LocalDateTime getVerificationCodeSentAt() {
+	    return verificationCodeSentAt;
+	}
+
+	public void setVerificationCodeSentAt(LocalDateTime verificationCodeSentAt) {
+	    this.verificationCodeSentAt = verificationCodeSentAt;
+	}
 
 	public List<Recetas> getRecetasAIntentar() {
 		return recetasAIntentar;

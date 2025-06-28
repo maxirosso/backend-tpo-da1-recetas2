@@ -171,7 +171,7 @@ public class UsuariosDAO {
                 });
                 
                 emailThread.start();
-                emailThread.join(5000); // Timeout de 5 segundos
+                emailThread.join(30000); // Timeout de 30 segundos (aumentado de 5000 a 30000)
                 
                 if (emailThread.isAlive()) {
                     System.out.println("🟠 UsuariosDAO: Timeout enviando email, pero registro completado");
@@ -245,24 +245,20 @@ public class UsuariosDAO {
 
     // USUARIOS: Registro en 2 etapas con código de verificación
     public boolean registrarUsuarioEtapa1(String correoElectronico, String alias) {
+        System.out.println("🟡 UsuariosDAO: Iniciando registro de usuario con verificación - Email: " + correoElectronico + ", Alias: " + alias);
         // Verificar si el correo ya está registrado
         Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(correoElectronico);
         if (usuarioExistentePorCorreo.isPresent()) {
-            Usuarios usuarioExistente = usuarioExistentePorCorreo.get();
-            if ("Si".equals(usuarioExistente.getHabilitado())) {
-                return false; // Ya está completamente registrado
-            } else {
-                return false; // Registro incompleto (manejo especial necesario)
-            }
+            System.out.println("🔴 UsuariosDAO: Email ya registrado: " + correoElectronico);
+            return false; // El correo ya está registrado
         }
-
         // Verificar si el alias ya está registrado
         boolean aliasExiste = usuariosRepository.findAll().stream()
             .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
         if (aliasExiste) {
+            System.out.println("🔴 UsuariosDAO: Alias ya registrado: " + alias);
             return false; // El alias ya está registrado
         }
-
         // Crear nuevo usuario en estado pendiente
         Usuarios nuevoUsuario = new Usuarios();
         nuevoUsuario.setMail(correoElectronico);
@@ -274,12 +270,31 @@ public class UsuariosDAO {
         nuevoUsuario.setDireccion("");
         nuevoUsuario.setAvatar("");
         nuevoUsuario.setRol("user");
-
-        // Guardar el nuevo usuario
+        // Generar código de verificación de 4 dígitos
+        String codigo = String.format("%04d", new java.util.Random().nextInt(10000));
+        nuevoUsuario.setCodigoRecuperacion(codigo);
+        nuevoUsuario.setVerificationCodeSentAt(java.time.LocalDateTime.now());
         usuariosRepository.save(nuevoUsuario);
-
-        // Enviar código de verificación
-        return enviarCodigoVerificacionUsuario(correoElectronico);
+        // Enviar email con el código de verificación
+        try {
+            jakarta.mail.internet.MimeMessage message = emailSender.createMimeMessage();
+            org.springframework.mail.javamail.MimeMessageHelper helper = new org.springframework.mail.javamail.MimeMessageHelper(message, true);
+            helper.setTo(correoElectronico);
+            helper.setSubject("Código de verificación - ChefNet");
+            helper.setText("¡Bienvenido a ChefNet! 👨‍🍳\n\n" +
+                "Para completar tu registro como usuario, necesitamos verificar tu email.\n\n" +
+                "Tu código de verificación es: " + codigo + "\n\n" +
+                "⏰ Este código es válido por 24 horas.\n" +
+                "🔒 Por tu seguridad, no compartas este código con nadie.\n\n" +
+                "Una vez verificado, podrás completar tu perfil con contraseña y datos adicionales.\n\n" +
+                "¡Gracias por unirte a ChefNet!\n\n---\nEl equipo de ChefNet");
+            emailSender.send(message);
+            System.out.println("Correo de verificación enviado con código: " + codigo);
+        } catch (Exception emailError) {
+            System.out.println("Error enviando correo de verificación: " + emailError.getMessage());
+            // No fallar el registro por error de email
+        }
+        return true;
     }
 
     // VISITANTES: Registro en 2 etapas con código de verificación
@@ -636,25 +651,125 @@ public class UsuariosDAO {
     }
     
     public boolean enviarCodigoRecuperacion(String mail) {
-    	Optional<Usuarios> usuario = usuariosRepository.findByMail(mail);
+        Optional<Usuarios> usuario = usuariosRepository.findByMail(mail);
         if (usuario.isPresent()) {
             Usuarios usuarios = usuario.get();
 
-            String codigo = String.format("%06d", new Random().nextInt(999999));
+            // Verificar que el usuario tenga registro completo
+            if (!"Si".equals(usuarios.getHabilitado())) {
+                return false; // No permitir recuperación para usuarios no habilitados
+            }
+
+            // Generar código de 4 dígitos para recuperación
+            String codigo = String.format("%04d", new Random().nextInt(10000));
 
             usuarios.setCodigoRecuperacion(codigo);
+            // Guardar timestamp para validez de 30 minutos
+            usuarios.setVerificationCodeSentAt(java.time.LocalDateTime.now());
             usuariosRepository.save(usuarios);
 
-            // Enviar el mail
-            SimpleMailMessage mensaje = new SimpleMailMessage();
-            mensaje.setTo(mail);
-            mensaje.setSubject("Código de recuperación de contraseña");
-            mensaje.setText("Tu código de recuperación es: " + codigo);
-            emailSender.send(mensaje);
-
-            return true;
+            // Enviar el mail con validez de 30 minutos
+            try {
+                SimpleMailMessage mensaje = new SimpleMailMessage();
+                mensaje.setTo(mail);
+                mensaje.setSubject("Código de recuperación de contraseña - ChefNet");
+                mensaje.setText(
+                    "¡Hola! 👨‍🍳\n\n" +
+                    "Recibimos una solicitud para restablecer tu contraseña en ChefNet.\n\n" +
+                    "Tu código de recuperación es:\n\n" +
+                    "🔐 " + codigo + "\n\n" +
+                    "⏰ Este código es válido por 30 minutos únicamente.\n" +
+                    "🔒 Por tu seguridad, no compartas este código con nadie.\n\n" +
+                    "Si no solicitaste este cambio, ignora este mensaje y tu contraseña permanecerá sin cambios.\n\n" +
+                    "---\n" +
+                    "El equipo de ChefNet"
+                );
+                emailSender.send(mensaje);
+                return true;
+            } catch (Exception e) {
+                System.out.println("Error enviando código de recuperación: " + e.getMessage());
+                e.printStackTrace();
+                return false;
+            }
         }
 
+        return false;
+    }
+
+    // Verificar código de recuperación (30 minutos de validez)
+    public boolean verificarCodigoRecuperacion(String mail, String codigoIngresado) {
+        Optional<Usuarios> usuarioOpt = usuariosRepository.findByMail(mail);
+        if (usuarioOpt.isPresent()) {
+            Usuarios usuario = usuarioOpt.get();
+            
+            // Verificar que el código coincida
+            if (usuario.getCodigoRecuperacion() != null && 
+                usuario.getCodigoRecuperacion().equals(codigoIngresado)) {
+                
+                // Verificar validez del código (30 minutos)
+                if (usuario.getVerificationCodeSentAt() != null) {
+                    java.time.LocalDateTime ahora = java.time.LocalDateTime.now();
+                    java.time.LocalDateTime enviadoEn = usuario.getVerificationCodeSentAt();
+                    long minutosTranscurridos = java.time.Duration.between(enviadoEn, ahora).toMinutes();
+                    
+                    if (minutosTranscurridos <= 30) {
+                        // Código válido y dentro del tiempo límite
+                        return true;
+                    } else {
+                        // Código expirado - limpiar código
+                        usuario.setCodigoRecuperacion(null);
+                        usuario.setVerificationCodeSentAt(null);
+                        usuariosRepository.save(usuario);
+                        return false;
+                    }
+                }
+            }
+        }
+        return false; // Código inválido o usuario no encontrado
+    }
+
+    // Cambiar contraseña con código válido
+    public boolean cambiarContrasenaConCodigo(String mail, String codigoIngresado, String nuevaPassword) {
+        // Primero verificar que el código sea válido
+        if (!verificarCodigoRecuperacion(mail, codigoIngresado)) {
+            return false;
+        }
+        
+        Optional<Usuarios> usuarioOpt = usuariosRepository.findByMail(mail);
+        if (usuarioOpt.isPresent()) {
+            Usuarios usuario = usuarioOpt.get();
+            
+            // Cambiar la contraseña
+            usuario.setPassword(nuevaPassword); // En producción debería estar hasheada
+            
+            // Limpiar código de recuperación usado
+            usuario.setCodigoRecuperacion(null);
+            usuario.setVerificationCodeSentAt(null);
+            
+            usuariosRepository.save(usuario);
+            
+            // Enviar email de confirmación
+            try {
+                SimpleMailMessage mensaje = new SimpleMailMessage();
+                mensaje.setTo(mail);
+                mensaje.setSubject("Contraseña cambiada exitosamente - ChefNet");
+                mensaje.setText(
+                    "¡Hola! 👨‍🍳\n\n" +
+                    "Tu contraseña ha sido cambiada exitosamente en ChefNet.\n\n" +
+                    "Si no realizaste este cambio, por favor contacta inmediatamente con nuestro soporte.\n\n" +
+                    "¡Gracias por usar ChefNet!\n\n" +
+                    "---\n" +
+                    "El equipo de ChefNet"
+                );
+                emailSender.send(mensaje);
+            } catch (Exception e) {
+                System.out.println("Error enviando confirmación de cambio de contraseña: " + e.getMessage());
+                // No fallar el cambio de contraseña por error de email
+            }
+            
+            return true;
+        }
+        
         return false;
     }
     
