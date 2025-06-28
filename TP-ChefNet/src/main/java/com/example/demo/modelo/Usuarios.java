@@ -47,6 +47,12 @@ public class Usuarios {
 	@Column(name = "verification_code_sent_at")
 	private LocalDateTime verificationCodeSentAt;
 	
+	@Column(name = "codigo_verificacion")
+    private String codigoVerificacion;
+
+    @Column(name = "codigo_verificacion_timestamp")
+    private LocalDateTime codigoVerificacionTimestamp;
+
 	@Column(name = "tipo")
 	private String tipo;
 
@@ -179,6 +185,22 @@ public class Usuarios {
 	public void setVerificationCodeSentAt(LocalDateTime verificationCodeSentAt) {
 	    this.verificationCodeSentAt = verificationCodeSentAt;
 	}
+
+	public String getCodigoVerificacion() {
+        return codigoVerificacion;
+    }
+
+    public void setCodigoVerificacion(String codigoVerificacion) {
+        this.codigoVerificacion = codigoVerificacion;
+    }
+
+    public LocalDateTime getCodigoVerificacionTimestamp() {
+        return codigoVerificacionTimestamp;
+    }
+
+    public void setCodigoVerificacionTimestamp(LocalDateTime codigoVerificacionTimestamp) {
+        this.codigoVerificacionTimestamp = codigoVerificacionTimestamp;
+    }
 
 	public List<Recetas> getRecetasAIntentar() {
 		return recetasAIntentar;

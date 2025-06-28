@@ -246,57 +246,27 @@ public class UsuariosDAO {
     // USUARIOS: Registro en 2 etapas con código de verificación
     public boolean registrarUsuarioEtapa1(String correoElectronico, String alias) {
         System.out.println("🟡 UsuariosDAO: Iniciando registro de usuario con verificación - Email: " + correoElectronico + ", Alias: " + alias);
-        // Verificar si el correo ya está registrado
-        Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(correoElectronico);
-        if (usuarioExistentePorCorreo.isPresent()) {
-            System.out.println("🔴 UsuariosDAO: Email ya registrado: " + correoElectronico);
-            return false; // El correo ya está registrado
-        }
-        // Verificar si el alias ya está registrado
-        boolean aliasExiste = usuariosRepository.findAll().stream()
-            .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
-        if (aliasExiste) {
-            System.out.println("🔴 UsuariosDAO: Alias ya registrado: " + alias);
-            return false; // El alias ya está registrado
-        }
-        // Crear nuevo usuario en estado pendiente
-        Usuarios nuevoUsuario = new Usuarios();
-        nuevoUsuario.setMail(correoElectronico);
-        nuevoUsuario.setNickname(alias);
-        nuevoUsuario.setPassword("PENDIENTE_VERIFICACION");
-        nuevoUsuario.setNombre("PENDIENTE_COMPLETAR");
-        nuevoUsuario.setHabilitado("No"); // No habilitado hasta verificar código
-        nuevoUsuario.setTipo("usuario");
-        nuevoUsuario.setDireccion("");
-        nuevoUsuario.setAvatar("");
-        nuevoUsuario.setRol("user");
-        // Generar código de verificación de 4 dígitos
-        String codigo = String.format("%04d", new java.util.Random().nextInt(10000));
-        nuevoUsuario.setCodigoRecuperacion(codigo);
-        nuevoUsuario.setVerificationCodeSentAt(java.time.LocalDateTime.now());
-        usuariosRepository.save(nuevoUsuario);
-        // Enviar email con el código de verificación
-        try {
-            jakarta.mail.internet.MimeMessage message = emailSender.createMimeMessage();
-            org.springframework.mail.javamail.MimeMessageHelper helper = new org.springframework.mail.javamail.MimeMessageHelper(message, true);
-            helper.setTo(correoElectronico);
-            helper.setSubject("Código de verificación - ChefNet");
-            helper.setText("¡Bienvenido a ChefNet! 👨‍🍳\n\n" +
-                "Para completar tu registro como usuario, necesitamos verificar tu email.\n\n" +
-                "Tu código de verificación es: " + codigo + "\n\n" +
-                "⏰ Este código es válido por 24 horas.\n" +
-                "🔒 Por tu seguridad, no compartas este código con nadie.\n\n" +
-                "Una vez verificado, podrás completar tu perfil con contraseña y datos adicionales.\n\n" +
-                "¡Gracias por unirte a ChefNet!\n\n---\nEl equipo de ChefNet");
-            emailSender.send(message);
-            System.out.println("Correo de verificación enviado con código: " + codigo);
-        } catch (Exception emailError) {
-            System.out.println("Error enviando correo de verificación: " + emailError.getMessage());
-            // No fallar el registro por error de email
-        }
-        return true;
-    }
 
+        try {
+            Usuarios nuevoUsuario = new Usuarios();
+            nuevoUsuario.setMail(correoElectronico);
+            nuevoUsuario.setNickname(alias);
+            nuevoUsuario.setTipo("usuario");
+            nuevoUsuario.setHabilitado("Pendiente"); // Pendiente de verificación por correo
+            
+            usuariosRepository.save(nuevoUsuario);
+            System.out.println("🟢 UsuariosDAO: Usuario (etapa 1) guardado en la base de datos.");
+
+            // Enviar código de verificación
+            return enviarCodigoVerificacionUsuario(correoElectronico);
+
+        } catch (Exception e) {
+            System.out.println("🔴 UsuariosDAO: Error en la etapa 1 del registro de usuario: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
     // VISITANTES: Registro en 2 etapas con código de verificación
     public boolean registrarVisitanteEtapa1(String correoElectronico, String alias) {
         System.out.println("🟡 UsuariosDAO: Iniciando registro de visitante con verificación - Email: " + correoElectronico + ", Alias: " + alias);
@@ -494,44 +464,65 @@ public class UsuariosDAO {
         }
     }
 
-    // Email con código de verificación para usuarios
+    // Envía el correo de verificación para USUARIOS
     public boolean enviarCodigoVerificacionUsuario(String correoElectronico) {
+        System.out.println("🟡 UsuariosDAO: Preparando para enviar código de verificación a USUARIO: " + correoElectronico);
+        
         Optional<Usuarios> usuarioOpt = usuariosRepository.findByMail(correoElectronico);
-        if (usuarioOpt.isPresent()) {
-            Usuarios usuario = usuarioOpt.get();
-
-            // Generar código de 6 dígitos
-            String codigoVerificacion = String.format("%06d", new Random().nextInt(999999));
-
-            // Guardar código en el campo existente 
-            usuario.setCodigoRecuperacion(codigoVerificacion);
-            usuariosRepository.save(usuario);
-
-            // Enviar email con código
-            try {
-                SimpleMailMessage mensaje = new SimpleMailMessage();
-                mensaje.setTo(correoElectronico);
-                mensaje.setSubject("Código de verificación - ChefNet");
-                mensaje.setText(
-                    "¡Bienvenido a ChefNet! 👨‍🍳\n\n" +
-                    "Para completar tu registro como usuario, necesitamos verificar tu email.\n\n" +
-                    "Tu código de verificación es: " + codigoVerificacion + "\n\n" +
-                    "⏰ Este código es válido por 24 horas.\n" +
-                    "🔒 Por tu seguridad, no compartas este código con nadie.\n\n" +
-                    "Una vez verificado, podrás completar tu perfil con contraseña y datos adicionales.\n\n" +
-                    "¡Gracias por unirte a ChefNet!\n\n" +
-                    "---\n" +
-                    "El equipo de ChefNet"
-                );
-                emailSender.send(mensaje);
-                return true;
-            } catch (Exception e) {
-                System.out.println("Error enviando código de verificación: " + e.getMessage());
-                e.printStackTrace();
-                return false;
-            }
+        
+        if (!usuarioOpt.isPresent()) {
+            System.out.println("🔴 UsuariosDAO: No se encontró usuario para enviar código: " + correoElectronico);
+            return false;
         }
-        return false;
+        
+        Usuarios usuario = usuarioOpt.get();
+        
+        // Si el usuario ya está habilitado, no enviar código
+        if ("Si".equals(usuario.getHabilitado())) {
+            System.out.println("🟠 UsuariosDAO: El usuario ya está habilitado, no se requiere código de verificación.");
+            return false;
+        }
+        
+        // Generar un nuevo código de 4 dígitos
+        String codigo = String.format("%04d", new Random().nextInt(10000));
+        
+        usuario.setCodigoVerificacion(codigo);
+        usuario.setCodigoVerificacionTimestamp(LocalDateTime.now());
+        usuariosRepository.save(usuario);
+        
+        System.out.println("🟢 UsuariosDAO: Código de verificación de USUARIO generado (" + codigo + ") y guardado para: " + correoElectronico);
+        
+        try {
+            // Crear el mensaje con MimeMessage para formato HTML
+            MimeMessage mimeMessage = emailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, "utf-8");
+
+            // Contenido del email
+            String htmlMsg = "<h3>¡Bienvenido a ChefNet! \uD83D\uDC68\u200D\uD83C\uDF73</h3>"
+                           + "<p>Para completar tu registro como <strong>usuario</strong>, necesitamos verificar tu email.</p>"
+                           + "<p>Tu código de verificación es: <strong>" + codigo + "</strong></p>"
+                           + "<p>⏰ Este código es válido por 24 horas.</p>"
+                           + "<p>🔒 Por tu seguridad, no compartas este código con nadie.</p>"
+                           + "<p>Una vez verificado, podrás completar tu perfil con contraseña y datos adicionales.</p>"
+                           + "<p>¡Gracias por unirte a ChefNet!</p>"
+                           + "<hr>"
+                           + "<p><em>El equipo de ChefNet</em></p>";
+            
+            helper.setText(htmlMsg, true); // true indica que es HTML
+            helper.setTo(correoElectronico);
+            helper.setSubject("Tu Código de Verificación de ChefNet");
+            helper.setFrom("rossomaxi685@gmail.com");
+
+            emailSender.send(mimeMessage);
+            System.out.println("🟢 UsuariosDAO: Email de verificación para USUARIO enviado a: " + correoElectronico);
+            return true;
+        } catch (MessagingException e) {
+            System.out.println("🔴 UsuariosDAO: Error creando email HTML para USUARIO: " + e.getMessage());
+            return false;
+        } catch (Exception e) {
+            System.out.println("🔴 UsuariosDAO: Error general enviando email a USUARIO: " + e.getMessage());
+            return false;
+        }
     }
 
     public boolean verificarCodigoUsuario(String correoElectronico, String codigoIngresado) {
@@ -539,17 +530,38 @@ public class UsuariosDAO {
         if (usuarioOpt.isPresent()) {
             Usuarios usuario = usuarioOpt.get();
             
-            // Verificar que el código coincida
-            if (usuario.getCodigoRecuperacion() != null && 
-                usuario.getCodigoRecuperacion().equals(codigoIngresado)) {
+            // Simplificado: solo verificar si el usuario ya está habilitado
+            if ("Si".equals(usuario.getHabilitado())) {
+                System.out.println("🔴 UsuariosDAO: Usuario ya se encuentra habilitado.");
+                return false;
+            }
+
+            // 1. Verificar que el código coincida
+            if (usuario.getCodigoVerificacion() != null && usuario.getCodigoVerificacion().equals(codigoIngresado)) {
                 
-                // Código válido - limpiar código pero NO habilitar aún
-                // Se habilitará cuando complete su perfil con contraseña
-                usuario.setCodigoRecuperacion(null);
-                usuariosRepository.save(usuario);
-                return true;
+                // 2. Verificar validez del código (24 horas)
+                if (usuario.getCodigoVerificacionTimestamp() != null) {
+                    LocalDateTime ahora = LocalDateTime.now();
+                    LocalDateTime enviadoEn = usuario.getCodigoVerificacionTimestamp();
+                    long horasTranscurridas = java.time.Duration.between(enviadoEn, ahora).toHours();
+                    
+                    if (horasTranscurridas <= 24) {
+                        // Código válido y dentro del tiempo límite.
+                        // Se habilita al completar el perfil, así que aquí solo validamos.
+                        System.out.println("🟢 UsuariosDAO: Código de USUARIO verificado exitosamente para: " + correoElectronico);
+                        return true;
+                    } else {
+                        System.out.println("🔴 UsuariosDAO: Código de USUARIO expirado para: " + correoElectronico);
+                        // Opcional: Limpiar código expirado
+                        usuario.setCodigoVerificacion(null);
+                        usuario.setCodigoVerificacionTimestamp(null);
+                        usuariosRepository.save(usuario);
+                        return false;
+                    }
+                }
             }
         }
+        System.out.println("🔴 UsuariosDAO: Código de USUARIO inválido o usuario no encontrado para: " + correoElectronico);
         return false; // Código inválido o usuario no encontrado
     }
 

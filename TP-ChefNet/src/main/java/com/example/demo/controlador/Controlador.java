@@ -676,22 +676,82 @@ public class Controlador {
 
     //Registro de Usuarios (Etapa 1: envío de código)
     @PostMapping("/registrarUsuarioEtapa1")
-    public ResponseEntity<String> registrarUsuarioEtapa1(@RequestParam String mail, @RequestParam String alias) {
+    public ResponseEntity<Map<String, Object>> registrarUsuarioEtapa1(@RequestParam String mail, @RequestParam String alias) {
+        System.out.println("🟢 Iniciando registro de USUARIO con verificación - Email: " + mail + ", Alias: " + alias);
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        // Verificar si el correo ya está registrado
+        Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(mail);
+        if (usuarioExistentePorCorreo.isPresent()) {
+            Usuarios usuarioExistente = usuarioExistentePorCorreo.get();
+            System.out.println("🔴 Email ya registrado: " + mail + ", Estado: " + usuarioExistente.getHabilitado());
+            
+            // Verificar si el registro previo se completó o quedó pendiente
+            if ("Si".equals(usuarioExistente.getHabilitado())) {
+                // Registro completado anteriormente
+                response.put("error", "El email ya está registrado. Si olvidaste tu contraseña, puedes recuperarla.");
+                response.put("success", false);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            } else {
+                // Registro incompleto - no puede usar este email
+                response.put("error", "Este email tiene un proceso de registro incompleto. Para continuar, revisa tu correo y busca el código de verificación. Si no lo encuentras, puedes solicitar uno nuevo. Si deseas usar otro correo, deberás contactar a soporte para liberar este.");
+                response.put("success", false);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        // Verificar alias y generar sugerencias si está en uso
+        boolean aliasExiste = usuariosRepository.findAll().stream()
+            .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
+        if (aliasExiste) {
+            System.out.println("🔴 Alias ya registrado: " + alias + ", generando sugerencias...");
+            
+            // Generar sugerencias automáticamente
+            List<String> sugerencias = generarSugerenciasAliasInterno(alias);
+            
+            response.put("error", "El alias ya está registrado.");
+            response.put("aliasUnavailable", true);
+            response.put("suggestions", sugerencias);
+            response.put("success", false);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        // Si todo está bien, proceder con el registro
         boolean registrado = usuariosDAO.registrarUsuarioEtapa1(mail, alias);
         if (registrado) {
-            return new ResponseEntity<>("Se ha enviado un código de verificación a tu correo.", HttpStatus.OK);
+            // Forzar el envío del email de verificación inmediatamente después del registro
+            boolean emailEnviado = usuariosDAO.enviarCodigoVerificacionUsuario(mail);
+            
+            if (emailEnviado) {
+                response.put("message", "Se ha enviado un código de verificación de 4 dígitos a tu correo. El código tiene una validez de 24 horas.");
+                response.put("success", true);
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            } else {
+                response.put("error", "Se creó tu usuario, pero no pudimos enviar el código de verificación. Por favor, solicítalo de nuevo desde la pantalla de login.");
+                response.put("success", false); // Indicar que hubo un problema con el email
+                return new ResponseEntity<>(response, HttpStatus.OK); // OK porque el usuario se creó, pero con advertencia
+            }
         }
-        return new ResponseEntity<>("Email o nickname ya registrado, por favor elija otro.", HttpStatus.BAD_REQUEST);
+        
+        response.put("error", "Error interno en el registro. Intente nuevamente.");
+        response.put("success", false);
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     //Verificar código de usuario
     @PostMapping("/verificarCodigoUsuario")
-    public ResponseEntity<String> verificarCodigoUsuario(@RequestParam String mail, @RequestParam String codigo) {
+    public ResponseEntity<Map<String, Object>> verificarCodigoUsuario(@RequestParam String mail, @RequestParam String codigo) {
         boolean verificado = usuariosDAO.verificarCodigoUsuario(mail, codigo);
+        Map<String, Object> response = new HashMap<>();
         if (verificado) {
-            return new ResponseEntity<>("Código verificado. Ahora completa tu perfil con contraseña.", HttpStatus.OK);
+            response.put("success", true);
+            response.put("message", "Código verificado. Ahora completa tu perfil con contraseña.");
+            return new ResponseEntity<>(response, HttpStatus.OK);
         }
-        return new ResponseEntity<>("Código inválido o expirado.", HttpStatus.BAD_REQUEST);
+        response.put("success", false);
+        response.put("message", "Código inválido o expirado.");
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
     //Completar registro de usuario (Etapa 2: datos + contraseña)
@@ -706,12 +766,17 @@ public class Controlador {
 
     //Reenviar código de verificación para usuario
     @PostMapping("/reenviarCodigoUsuario") 
-    public ResponseEntity<String> reenviarCodigoUsuario(@RequestParam String mail) {
+    public ResponseEntity<Map<String, Object>> reenviarCodigoUsuario(@RequestParam String mail) {
         boolean enviado = usuariosDAO.enviarCodigoVerificacionUsuario(mail);
+        Map<String, Object> response = new HashMap<>();
         if (enviado) {
-            return new ResponseEntity<>("Se ha reenviado el código de verificación a tu correo.", HttpStatus.OK);
+            response.put("success", true);
+            response.put("message", "Se ha reenviado el código de verificación a tu correo.");
+            return new ResponseEntity<>(response, HttpStatus.OK);
         }
-        return new ResponseEntity<>("No se pudo reenviar el código. Verifica tu email.", HttpStatus.BAD_REQUEST);
+        response.put("success", false);
+        response.put("message", "No se pudo reenviar el código. Verifica tu email.");
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
   
     //Registro de Alumnos
