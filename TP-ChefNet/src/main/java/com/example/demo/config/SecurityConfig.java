@@ -64,6 +64,9 @@ public class SecurityConfig {
                 // Temporarily allow enrollment endpoint for debugging
                 .requestMatchers(new AntPathRequestMatcher("/inscribirseACurso")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/getCursosDisponibles")).permitAll()
+                // Course management endpoints
+                .requestMatchers(new AntPathRequestMatcher("/baja/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/alumno/**")).permitAll()
                 // All other endpoints require authentication
                 .anyRequest().authenticated()
             )

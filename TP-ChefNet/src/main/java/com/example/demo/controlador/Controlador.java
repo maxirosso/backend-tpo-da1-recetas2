@@ -2195,6 +2195,7 @@ public class Controlador {
             inscripcion.setIdAlumno(idAlumno);
             inscripcion.setCronograma(cronograma);
             inscripcion.setIdCronograma(idCronograma);
+            // ✅ CORREGIDO: Ahora sí seteamos el curso porque la tabla lo requiere
             inscripcion.setCurso(cronograma.getIdCurso());
             inscripcion.setIdCurso(cronograma.getIdCurso().getIdCurso());
             inscripcion.setFechaInscripcion(new Date());
@@ -2250,6 +2251,13 @@ public class Controlador {
                 dto.put("estadoPago", inscripcion.getEstadoPago());
                 dto.put("monto", inscripcion.getMonto());
                 
+                System.out.println("=== CURSO DEL ALUMNO DEBUG ===");
+                System.out.println("Curso ID: " + curso.getIdCurso());
+                System.out.println("Cronograma ID: " + cronograma.getIdCronograma());
+                System.out.println("Inscripcion ID: " + inscripcion.getIdInscripcion());
+                System.out.println("Estado inscripcion: " + inscripcion.getEstadoInscripcion());
+                System.out.println("Estado pago: " + inscripcion.getEstadoPago());
+                
                 // Información de la sede
                 if (sede != null) {
                     Map<String, Object> sedeDto = new HashMap<>();
@@ -2275,9 +2283,14 @@ public class Controlador {
     //Darse de baja de un curso
     @PostMapping("/baja/{idInscripcion}")
     public ResponseEntity<String> bajaCurso(@PathVariable int idInscripcion, @RequestParam boolean reintegroEnTarjeta) {
+        System.out.println("=== CANCELAR INSCRIPCION DEBUG ===");
+        System.out.println("idInscripcion: " + idInscripcion);
+        System.out.println("reintegroEnTarjeta: " + reintegroEnTarjeta);
+        
         Optional<Inscripcion> inscripcion = inscripcionDAO.findById(idInscripcion);
 
         if (inscripcion.isEmpty()) {
+            System.out.println("❌ Inscripción no encontrada con ID: " + idInscripcion);
             return ResponseEntity.badRequest().body("Inscripción no encontrada.");
         }
         Inscripcion inscripciones = inscripcion.get();
@@ -2288,26 +2301,41 @@ public class Controlador {
         long diasDeDiferencia = ChronoUnit.DAYS.between(fechaBaja.toLocalDate(), fechaInicioCurso.toLocalDate());
 
         BigDecimal reintegro = BigDecimal.ZERO;
+        String mensajeReintegro = "";
 
         if (diasDeDiferencia > 10) {
             // Si la baja es más de 10 días antes, reintegro total
             reintegro = curso.getPrecio();
+            mensajeReintegro = "Reintegro completo";
         } else if (diasDeDiferencia <= 10 && diasDeDiferencia > 1) {
             // Si la baja es entre 9 y 1 días antes, reintegro del 70%
             reintegro = curso.getPrecio().multiply(BigDecimal.valueOf(0.7));
+            mensajeReintegro = "Reintegro del 70%";
         } else if (diasDeDiferencia == 1) {
             // Si la baja es el día antes del curso, reintegro del 50%
             reintegro = curso.getPrecio().multiply(BigDecimal.valueOf(0.5));
+            mensajeReintegro = "Reintegro del 50%";
+        } else if (diasDeDiferencia == 0) {
+            // Si la baja es el mismo día del inicio, reintegro del 50%
+            reintegro = curso.getPrecio().multiply(BigDecimal.valueOf(0.50));
+            mensajeReintegro = "Reintegro del 50% (mismo día de inicio)";
         } else {
-            // Si la baja es después del inicio del curso, no hay reintegro
-            return ResponseEntity.status(400).body("No se puede dar de baja después del inicio del curso.");
+            // Si la baja es después del inicio del curso, no hay reintegro pero se permite
+            reintegro = BigDecimal.ZERO;
+            mensajeReintegro = "Sin reintegro (curso ya iniciado)";
+            System.out.println("⚠️ Cancelación después del inicio - Sin reintegro");
         }
 
         inscripciones.setEstadoInscripcion("cancelado");
         inscripcionDAO.save(inscripciones);
+        
+        System.out.println("✅ Inscripción cancelada exitosamente");
+        System.out.println("✅ Estado actualizado a: " + inscripciones.getEstadoInscripcion());
+        System.out.println("✅ Días de diferencia: " + diasDeDiferencia);
+        System.out.println("✅ Reintegro calculado: " + reintegro);
+        System.out.println("✅ Mensaje: " + mensajeReintegro);
 
-
-        return ResponseEntity.ok("Baja procesada correctamente. Reintegro: " + reintegro);
+        return ResponseEntity.ok("Baja procesada correctamente. " + mensajeReintegro + ". Monto: $" + reintegro);
     }
 
 
