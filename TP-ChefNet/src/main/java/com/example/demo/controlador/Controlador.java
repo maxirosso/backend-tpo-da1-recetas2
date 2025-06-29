@@ -2219,9 +2219,57 @@ public class Controlador {
     
     //Obtener el curso del alumno
     @GetMapping("/alumno/{idAlumno}")
-    public ResponseEntity<List<Cursos>> getCursosDelAlumno(@PathVariable int idAlumno) {
-        List<Cursos> cursos = cursosDAO.obtenerCursosPorAlumno(idAlumno);
-        return ResponseEntity.ok(cursos);
+    public ResponseEntity<List<Map<String, Object>>> getCursosDelAlumno(@PathVariable int idAlumno) {
+        try {
+            // Obtener inscripciones activas del alumno
+            List<Inscripcion> inscripciones = inscripcionRepository.findByIdAlumnoAndEstadoInscripcion(idAlumno, "inscrito");
+            List<Map<String, Object>> resultado = new ArrayList<>();
+
+            for (Inscripcion inscripcion : inscripciones) {
+                CronogramaCursos cronograma = inscripcion.getCronograma();
+                Cursos curso = cronograma.getIdCurso();
+                Sedes sede = cronograma.getIdSede();
+                
+                Map<String, Object> dto = new HashMap<>();
+                dto.put("id", curso.getIdCurso());
+                dto.put("idCurso", curso.getIdCurso());
+                dto.put("idCronograma", cronograma.getIdCronograma());
+                dto.put("idInscripcion", inscripcion.getIdInscripcion()); // ID para cancelar
+                dto.put("title", curso.getDescripcion());
+                dto.put("descripcion", curso.getDescripcion());
+                dto.put("contenidos", curso.getContenidos());
+                dto.put("requerimientos", curso.getRequerimientos());
+                dto.put("duracion", curso.getDuracion());
+                dto.put("precio", curso.getPrecio());
+                dto.put("modalidad", curso.getModalidad());
+                dto.put("fechaInicio", cronograma.getFechaInicio());
+                dto.put("fechaFin", cronograma.getFechaFin());
+                dto.put("vacantesDisponibles", cronograma.getVacantesDisponibles());
+                dto.put("fechaInscripcion", inscripcion.getFechaInscripcion());
+                dto.put("estadoInscripcion", inscripcion.getEstadoInscripcion());
+                dto.put("estadoPago", inscripcion.getEstadoPago());
+                dto.put("monto", inscripcion.getMonto());
+                
+                // Información de la sede
+                if (sede != null) {
+                    Map<String, Object> sedeDto = new HashMap<>();
+                    sedeDto.put("id", sede.getIdSede());
+                    sedeDto.put("nombre", sede.getNombreSede());
+                    sedeDto.put("direccion", sede.getDireccionSede());
+                    sedeDto.put("telefono", sede.getTelefonoSede());
+                    sedeDto.put("email", sede.getMailSede());
+                    sedeDto.put("whatsapp", sede.getWhatsApp());
+                    dto.put("sede", sedeDto);
+                }
+                
+                resultado.add(dto);
+            }
+
+            return ResponseEntity.ok(resultado);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
     }
     
     //Darse de baja de un curso
@@ -2255,7 +2303,7 @@ public class Controlador {
             return ResponseEntity.status(400).body("No se puede dar de baja después del inicio del curso.");
         }
 
-        inscripciones.setEstadoInscripcion("Baja");
+        inscripciones.setEstadoInscripcion("cancelado");
         inscripcionDAO.save(inscripciones);
 
 
