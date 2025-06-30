@@ -1934,7 +1934,7 @@ public class Controlador {
                     return new ResponseEntity<>("Receta no encontrada en tu lista", HttpStatus.NOT_FOUND);
                 }
             }
-            
+            //hola 
             // Usar la nueva tabla recetas_a_intentar
             boolean exists = recetasAIntentarRepository.existsByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario());
             if (exists) {
