@@ -2149,7 +2149,6 @@ public class Controlador {
         try {
             // Verificar que el alumno existe, si no existe pero el usuario sí, crearlo automáticamente
             Optional<Alumnos> alumnoOpt = alumnosRepository.findById(idAlumno);
-            Alumnos alumno;
             
             if (!alumnoOpt.isPresent()) {
                 // Verificar si existe como usuario
@@ -2164,53 +2163,21 @@ public class Controlador {
                 }
                 
                 // Crear automáticamente la entrada de alumno
-                alumno = new Alumnos();
+                Alumnos alumno = new Alumnos();
                 alumno.setIdAlumno(idAlumno);
                 alumno.setNroTarjeta(usuario.getMedioPago()); // Usar el medio de pago como número de tarjeta
                 alumno.setCuentaCorriente(new java.math.BigDecimal("10000.00")); // Cuenta corriente por defecto
                 alumno.setUsuario(usuario); // Establecer la relación con el usuario
-                alumno = alumnosRepository.save(alumno);
+                alumnosRepository.save(alumno);
                 
                 System.out.println("Alumno creado automáticamente para usuario ID: " + idAlumno);
-            } else {
-                alumno = alumnoOpt.get();
             }
 
-            // Verificar que el cronograma existe
-            Optional<CronogramaCursos> cronogramaOpt = cronogramaCursosRepository.findById(idCronograma);
-            if (!cronogramaOpt.isPresent()) {
-                return ResponseEntity.badRequest().body("Cronograma de curso no encontrado");
-            }
-
-            CronogramaCursos cronograma = cronogramaOpt.get();
-
-            // Verificar vacantes disponibles
-            if (cronograma.getVacantesDisponibles() <= 0) {
-                return ResponseEntity.badRequest().body("No hay vacantes disponibles para este curso");
-            }
-
-            // Crear nueva inscripción
-            Inscripcion inscripcion = new Inscripcion();
-            inscripcion.setAlumno(alumno);
-            inscripcion.setIdAlumno(idAlumno);
-            inscripcion.setCronograma(cronograma);
-            inscripcion.setIdCronograma(idCronograma);
-            // ✅ CORREGIDO: Ahora sí seteamos el curso porque la tabla lo requiere
-            inscripcion.setCurso(cronograma.getIdCurso());
-            inscripcion.setIdCurso(cronograma.getIdCurso().getIdCurso());
-            inscripcion.setFechaInscripcion(new Date());
-            inscripcion.setEstadoInscripcion("inscrito");
-            inscripcion.setEstadoPago("pagado");
-            inscripcion.setMonto(cronograma.getIdCurso().getPrecio());
-
-            // Guardar inscripción
-            inscripcionRepository.save(inscripcion);
-
-            // Actualizar vacantes disponibles
-            cronograma.setVacantesDisponibles(cronograma.getVacantesDisponibles() - 1);
-            cronogramaCursosRepository.save(cronograma);
-
-            return ResponseEntity.ok("Inscripción realizada con éxito. Se ha cargado el pago y enviado confirmación.");
+            // ✅ USAR EL DAO QUE YA MANEJA LA CUENTA CORRIENTE
+            cursosDAO.inscribirAlumnoACurso(idAlumno, idCronograma);
+            
+            System.out.println("✅ Inscripción exitosa - Cuenta corriente actualizada automáticamente");
+            return ResponseEntity.ok("Inscripción realizada con éxito. Se ha descontado el monto del curso de tu cuenta corriente.");
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al procesar la inscripción: " + e.getMessage());
@@ -2280,6 +2247,42 @@ public class Controlador {
         }
     }
     
+    //Obtener información del alumno incluyendo cuenta corriente
+    @GetMapping("/alumnoInfo/{idAlumno}")
+    public ResponseEntity<Map<String, Object>> getInfoAlumno(@PathVariable int idAlumno) {
+        try {
+            Optional<Alumnos> alumnoOpt = alumnosRepository.findById(idAlumno);
+            
+            if (!alumnoOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Alumnos alumno = alumnoOpt.get();
+            Map<String, Object> resultado = new HashMap<>();
+            
+            resultado.put("idAlumno", alumno.getIdAlumno());
+            resultado.put("numeroTarjeta", alumno.getNroTarjeta());
+            resultado.put("dniFrente", alumno.getDniFrente());
+            resultado.put("dniFondo", alumno.getDniFondo());
+            resultado.put("tramite", alumno.getTramite());
+            resultado.put("cuentaCorriente", alumno.getCuentaCorriente());
+            
+            // Incluir información básica del usuario relacionado
+            if (alumno.getUsuario() != null) {
+                Usuarios usuario = alumno.getUsuario();
+                resultado.put("mail", usuario.getMail());
+                resultado.put("nombre", usuario.getNombre());
+                resultado.put("nickname", usuario.getNickname());
+                resultado.put("tipo", usuario.getTipo());
+            }
+            
+            return ResponseEntity.ok(resultado);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+    
     //Darse de baja de un curso
     @PostMapping("/baja/{idInscripcion}")
     public ResponseEntity<String> bajaCurso(@PathVariable int idInscripcion, @RequestParam boolean reintegroEnTarjeta) {
@@ -2326,6 +2329,19 @@ public class Controlador {
             System.out.println("⚠️ Cancelación después del inicio - Sin reintegro");
         }
 
+        // ✅ ACTUALIZAR CUENTA CORRIENTE DEL ALUMNO CON EL REINTEGRO
+        Alumnos alumno = inscripciones.getAlumno();
+        if (reintegro.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal cuentaAnterior = alumno.getCuentaCorriente();
+            alumno.setCuentaCorriente(cuentaAnterior.add(reintegro));
+            alumnosRepository.save(alumno);
+            
+            System.out.println("💰 Cuenta corriente actualizada:");
+            System.out.println("   - Saldo anterior: $" + cuentaAnterior);
+            System.out.println("   - Reintegro: $" + reintegro);
+            System.out.println("   - Nuevo saldo: $" + alumno.getCuentaCorriente());
+        }
+
         inscripciones.setEstadoInscripcion("cancelado");
         inscripcionDAO.save(inscripciones);
         
@@ -2335,7 +2351,12 @@ public class Controlador {
         System.out.println("✅ Reintegro calculado: " + reintegro);
         System.out.println("✅ Mensaje: " + mensajeReintegro);
 
-        return ResponseEntity.ok("Baja procesada correctamente. " + mensajeReintegro + ". Monto: $" + reintegro);
+        String mensajeFinal = "Baja procesada correctamente. " + mensajeReintegro + ". Monto: $" + reintegro;
+        if (reintegro.compareTo(BigDecimal.ZERO) > 0) {
+            mensajeFinal += ". El reintegro ha sido acreditado en tu cuenta corriente.";
+        }
+        
+        return ResponseEntity.ok(mensajeFinal);
     }
 
 
