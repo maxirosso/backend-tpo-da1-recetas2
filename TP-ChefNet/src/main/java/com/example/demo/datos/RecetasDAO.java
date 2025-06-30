@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -70,24 +71,56 @@ public class RecetasDAO {
             directorio.mkdirs();
         }
 
-        for (MultipartFile archivo : archivos) {
+        int fotoPrincipalIndex = 0; // La primera imagen será la foto principal
+        boolean fotoPrincipalAsignada = false;
+
+        for (int i = 0; i < archivos.length; i++) {
+            MultipartFile archivo = archivos[i];
             if (!archivo.isEmpty()) {
                 try {
                     String nombreArchivo = archivo.getOriginalFilename();
-                    Path rutaArchivo = (Path) Paths.get(carpetaReceta, nombreArchivo);
-                    File archivoDestino = new File(carpetaReceta + File.separator + nombreArchivo);
+                    String nombreArchivoUnico = System.currentTimeMillis() + "_" + nombreArchivo;
+                    Path rutaArchivo = (Path) Paths.get(carpetaReceta, nombreArchivoUnico);
+                    File archivoDestino = new File(carpetaReceta + File.separator + nombreArchivoUnico);
 
                     // Escribir el archivo en el disco
                     try (FileOutputStream fos = new FileOutputStream(archivoDestino)) {
                         fos.write(archivo.getBytes());
                     }
 
-                    // Crear objeto Multimedia para asociar el archivo con la receta
+                    // Determinar tipo de contenido basado en el nombre del archivo o posición
+                    String tipoContenido = determinarTipoContenido(nombreArchivo, i);
+                    
+                    // Si es la primera imagen y la receta no tiene foto principal, asignarla
+                    if (!fotoPrincipalAsignada && i == fotoPrincipalIndex) {
+                        // Actualizar la foto principal en la receta
+                        receta.setFotoPrincipal(rutaArchivo.toString());
+                        save(receta); // Guardar la actualización
+                        fotoPrincipalAsignada = true;
+                    }
+
+                    // Crear objeto Multimedia para todas las imágenes
                     Multimedia multimedia = new Multimedia();
                     multimedia.setReceta(receta); 
-                    multimedia.setTipoContenido(archivo.getContentType());
+                    multimedia.setTipoContenido(tipoContenido);
                     multimedia.setExtension(getExtension(nombreArchivo));
                     multimedia.setUrlContenido(rutaArchivo.toString());
+
+                    // Si el nombre del archivo contiene información del paso, asociarlo
+                    Integer numeroPaso = extraerNumeroPasoDeNombreArchivo(nombreArchivo);
+                    if (numeroPaso != null) {
+                        // Buscar el paso correspondiente
+                        List<Pasos> pasosReceta = recetasRepository.findById(receta.getIdReceta())
+                                .map(Recetas::getPasos)
+                                .orElse(new ArrayList<>());
+                        
+                        for (Pasos paso : pasosReceta) {
+                            if (paso.getNroPaso() == numeroPaso) {
+                                multimedia.setIdPaso(paso);
+                                break;
+                            }
+                        }
+                    }
 
                     // Guardar la información del archivo en la base de datos
                     multimediaRepository.save(multimedia);
@@ -98,6 +131,45 @@ public class RecetasDAO {
         }
     }
 
+    // Método para determinar el tipo de contenido basado en el nombre del archivo
+    private String determinarTipoContenido(String nombreArchivo, int posicion) {
+        if (nombreArchivo.toLowerCase().contains("principal")) {
+            return "foto_principal";
+        } else if (nombreArchivo.toLowerCase().contains("paso") || nombreArchivo.toLowerCase().contains("step")) {
+            return "foto_paso";
+        } else if (nombreArchivo.toLowerCase().contains("adicional")) {
+            return "foto_adicional";
+        } else if (posicion == 0) {
+            return "foto_principal";
+        } else {
+            return "foto_receta";
+        }
+    }
+
+    // Método para extraer número de paso del nombre del archivo
+    private Integer extraerNumeroPasoDeNombreArchivo(String nombreArchivo) {
+        try {
+            // Buscar patrones como "paso_1", "step_2", etc.
+            if (nombreArchivo.toLowerCase().contains("paso_")) {
+                String[] partes = nombreArchivo.toLowerCase().split("paso_");
+                if (partes.length > 1) {
+                    String numeroParte = partes[1].split("[^0-9]")[0];
+                    return Integer.parseInt(numeroParte);
+                }
+            }
+            
+            if (nombreArchivo.toLowerCase().contains("step_")) {
+                String[] partes = nombreArchivo.toLowerCase().split("step_");
+                if (partes.length > 1) {
+                    String numeroParte = partes[1].split("[^0-9]")[0];
+                    return Integer.parseInt(numeroParte);
+                }
+            }
+        } catch (NumberFormatException e) {
+            // Si no se puede extraer un número, retornar null
+        }
+        return null;
+    }
 
     private String getExtension(String nombreArchivo) {
         int index = nombreArchivo.lastIndexOf('.');

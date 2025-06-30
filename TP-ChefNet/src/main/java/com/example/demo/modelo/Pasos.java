@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -18,7 +19,7 @@ public class Pasos {
 	@Column(name = "idPaso")
 	private Integer idPaso;
 	@ManyToOne
-	@JoinTable(name = "recetas")
+	@JoinColumn(name = "idReceta")
 	private Recetas idReceta;
 	@Column(name = "nroPaso")
 	private int nroPaso;

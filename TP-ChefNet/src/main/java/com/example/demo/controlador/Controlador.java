@@ -38,6 +38,8 @@ import com.example.demo.modelo.CronogramaCursos;
 import com.example.demo.modelo.Cursos;
 import com.example.demo.modelo.Ingredientes;
 import com.example.demo.modelo.Inscripcion;
+import com.example.demo.modelo.Multimedia;
+import com.example.demo.modelo.Pasos;
 import com.example.demo.modelo.Recetas;
 import com.example.demo.modelo.RecetasGuardadas;
 import com.example.demo.modelo.RecetasGuardadasId;
@@ -360,7 +362,7 @@ public class Controlador {
                         dto.put("usuario", usuarioDTO);
                     }
                     
-                    // Agregar ingredientes (estaba faltando!)
+                    // Agregar ingredientes
                     if (receta.getIngredientes() != null && !receta.getIngredientes().isEmpty()) {
                         List<Map<String, Object>> ingredientesDTO = receta.getIngredientes().stream()
                             .map(ingrediente -> {
@@ -374,6 +376,28 @@ public class Controlador {
                             .collect(Collectors.toList());
                         dto.put("ingredientes", ingredientesDTO);
                     }
+                    
+                    // Agregar pasos
+                    List<Pasos> pasos = pasosRepository.findByIdRecetaOrderByNroPaso(receta);
+                    List<Map<String, Object>> pasosDTO = new ArrayList<>();
+                    for (Pasos paso : pasos) {
+                        Map<String, Object> pasoMap = new HashMap<>();
+                        pasoMap.put("idPaso", paso.getIdPaso());
+                        pasoMap.put("nroPaso", paso.getNroPaso());
+                        pasoMap.put("texto", paso.getTexto());
+                        pasosDTO.add(pasoMap);
+                    }
+                    dto.put("pasos", pasosDTO);
+                    
+                    // Mantener compatibilidad con instrucciones como string
+                    StringBuilder instruccionesStr = new StringBuilder();
+                    for (Pasos paso : pasos) {
+                        if (instruccionesStr.length() > 0) {
+                            instruccionesStr.append("\n");
+                        }
+                        instruccionesStr.append(paso.getTexto());
+                    }
+                    dto.put("instrucciones", instruccionesStr.toString());
                     
                     return dto;
                 })
@@ -1448,8 +1472,14 @@ public class Controlador {
                 });
             }
 
+            // Guardar la receta primero para obtener su ID
             recetasDAO.save(receta);
-            guardarArchivosDeReceta(archivos, receta);
+            
+            // Procesar pasos individuales a partir de las instrucciones
+            procesarPasosDeReceta(receta);
+            
+            // Guardar archivos con lógica mejorada para asociar con pasos
+            guardarArchivosDeRecetaMejorado(archivos, receta);
 
             return ResponseEntity.ok("Receta cargada exitosamente y pendiente de autorización.");
         } catch (Exception e) {
@@ -1459,10 +1489,38 @@ public class Controlador {
         }
     }
 
-    // Método que guarda los archivos asociados a la receta
-    public void guardarArchivosDeReceta(MultipartFile[] archivos, Recetas receta) {
+    // Método para procesar y guardar pasos individuales
+    private void procesarPasosDeReceta(Recetas receta) {
+        if (receta.getInstrucciones() != null && !receta.getInstrucciones().trim().isEmpty()) {
+            // Dividir las instrucciones por saltos de línea
+            String[] pasos = receta.getInstrucciones().split("\\n");
+            
+            for (int i = 0; i < pasos.length; i++) {
+                String textoPaso = pasos[i].trim();
+                if (!textoPaso.isEmpty()) {
+                    Pasos paso = new Pasos();
+                    paso.setIdReceta(receta);
+                    paso.setNroPaso(i + 1);
+                    paso.setTexto(textoPaso);
+                    
+                    // Guardar el paso en la base de datos
+                    pasosDAO.save(paso);
+                }
+            }
+        }
+    }
+
+    // Método mejorado que guarda los archivos asociados a la receta
+    public void guardarArchivosDeRecetaMejorado(MultipartFile[] archivos, Recetas receta) {
         if (archivos != null && archivos.length > 0) {
+            // Usar el DAO existente para guardar archivos
+            // Los archivos se guardarán en la tabla multimedia sin paso específico
+            // para foto principal y fotos adicionales
             recetasDAO.guardarArchivos(archivos, receta);
+            
+            // Si necesitamos asociar imágenes específicas a pasos, 
+            // necesitaríamos información adicional del frontend sobre qué imagen corresponde a qué paso
+            // Por ahora, las guardamos como multimedia general de la receta
         }
     }
 
@@ -1666,9 +1724,69 @@ public class Controlador {
             }
         }
         dto.put("ingredientes", ingredientesDTO);
-        // Instrucciones planas
-        dto.put("instrucciones", receta.getInstrucciones());
-        // Otros campos simples si existen
+        
+        // Obtener pasos ordenados por número con sus fotos
+        List<Pasos> pasos = pasosRepository.findByIdRecetaOrderByNroPaso(receta);
+        List<Map<String, Object>> pasosDTO = new ArrayList<>();
+        for (Pasos paso : pasos) {
+            Map<String, Object> pasoMap = new HashMap<>();
+            pasoMap.put("idPaso", paso.getIdPaso());
+            pasoMap.put("nroPaso", paso.getNroPaso());
+            pasoMap.put("texto", paso.getTexto());
+            
+            // Buscar multimedia asociada a este paso
+            List<Multimedia> multimediaPaso = multimediaRepository.findByReceta(receta);
+            String imagenPaso = null;
+            for (Multimedia media : multimediaPaso) {
+                if (media.getIdPaso() != null && media.getIdPaso().getIdPaso().equals(paso.getIdPaso())) {
+                    imagenPaso = media.getUrlContenido();
+                    break;
+                }
+            }
+            pasoMap.put("imagen", imagenPaso);
+            
+            pasosDTO.add(pasoMap);
+        }
+        dto.put("pasos", pasosDTO);
+        
+        // Obtener fotos adicionales de la receta (sin paso específico)
+        List<Multimedia> fotosReceta = multimediaRepository.findByReceta(receta);
+        List<Map<String, Object>> fotosDTO = new ArrayList<>();
+        for (Multimedia media : fotosReceta) {
+            if (media.getIdPaso() == null) { // Solo fotos de la receta, no de pasos
+                Map<String, Object> fotoMap = new HashMap<>();
+                fotoMap.put("idContenido", media.getIdContenido());
+                fotoMap.put("url", media.getUrlContenido());
+                fotoMap.put("tipo", media.getTipoContenido());
+                fotoMap.put("extension", media.getExtension());
+                fotosDTO.add(fotoMap);
+            }
+        }
+        dto.put("multimedia", fotosDTO);
+        
+        // Mantener compatibilidad con instrucciones como string
+        StringBuilder instruccionesStr = new StringBuilder();
+        for (Pasos paso : pasos) {
+            if (instruccionesStr.length() > 0) {
+                instruccionesStr.append("\n");
+            }
+            instruccionesStr.append(paso.getTexto());
+        }
+        dto.put("instrucciones", instruccionesStr.toString());
+        
+        // Obtener multimedia asociada a la receta
+        List<Multimedia> multimedia = multimediaRepository.findByReceta(receta);
+        List<Map<String, Object>> multimediaDTO = new ArrayList<>();
+        for (Multimedia media : multimedia) {
+            Map<String, Object> mediaMap = new HashMap<>();
+            mediaMap.put("idContenido", media.getIdContenido());
+            mediaMap.put("tipoContenido", media.getTipoContenido());
+            mediaMap.put("urlContenido", media.getUrlContenido());
+            mediaMap.put("extension", media.getExtension());
+            multimediaDTO.add(mediaMap);
+        }
+        dto.put("multimedia", multimediaDTO);
+        
         return ResponseEntity.ok(dto);
     }
 
@@ -2602,6 +2720,29 @@ public class Controlador {
                 System.out.println("Ingredientes actualizados correctamente");
             }
             
+            // Actualizar pasos si se proporcionan
+            if (recetaActualizada.getPasos() != null && !recetaActualizada.getPasos().isEmpty()) {
+                System.out.println("Actualizando pasos: " + recetaActualizada.getPasos().size() + " pasos recibidos");
+                
+                // Eliminar pasos existentes
+                List<Pasos> pasosExistentes = pasosRepository.findByIdRecetaOrderByNroPaso(receta);
+                if (pasosExistentes != null && !pasosExistentes.isEmpty()) {
+                    for (Pasos paso : pasosExistentes) {
+                        pasosRepository.delete(paso);
+                    }
+                }
+                
+                // Añadir nuevos pasos
+                for (int i = 0; i < recetaActualizada.getPasos().size(); i++) {
+                    Pasos paso = recetaActualizada.getPasos().get(i);
+                    paso.setIdReceta(receta);
+                    paso.setNroPaso(i + 1); // Asegurar orden correcto
+                    pasosRepository.save(paso);
+                }
+                
+                System.out.println("Pasos actualizados correctamente");
+            }
+            
             // Marcar como no autorizada para revisión después de la edición
             receta.setAutorizada(false);
             
@@ -2813,47 +2954,367 @@ public class Controlador {
         }
     }
 
-    //Endpoint específico para creación de recetas con ingredientes desde el frontend
+    //Endpoint específico para creación de recetas con ingredientes y pasos desde el frontend
     @PostMapping("/crearRecetaConIngredientes")
     public ResponseEntity<?> crearRecetaConIngredientes(@RequestBody Map<String, Object> recetaData) {
         try {
-            System.out.println("=== DATOS RECIBIDOS PARA CREAR RECETA ===");
-            System.out.println(recetaData);
+            System.out.println("Datos recibidos para crear receta: " + recetaData);
             
-            // Extraer datos básicos de la receta
+            // Obtener usuario autenticado
+            Usuarios usuarioActual = usuariosDAO.getUsuarioAutenticado();
+            
+            if (usuarioActual == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "message", "Debe iniciar sesión para crear una receta."));
+            }
+
+            // Crear nueva receta
+            Recetas nuevaReceta = new Recetas();
+            
+            // Datos básicos de la receta
             String nombreReceta = (String) recetaData.get("nombreReceta");
             String descripcionReceta = (String) recetaData.get("descripcionReceta");
             String fotoPrincipal = (String) recetaData.get("fotoPrincipal");
+            Integer porciones = (Integer) recetaData.get("porciones");
+            Integer cantidadPersonas = (Integer) recetaData.get("cantidadPersonas");
             String instrucciones = (String) recetaData.get("instrucciones");
             
-            // Crear objeto receta
-            Recetas nuevaReceta = new Recetas();
             nuevaReceta.setNombreReceta(nombreReceta);
             nuevaReceta.setDescripcionReceta(descripcionReceta);
             nuevaReceta.setFotoPrincipal(fotoPrincipal);
+            nuevaReceta.setPorciones(porciones != null ? porciones : 1);
+            nuevaReceta.setCantidadPersonas(cantidadPersonas != null ? cantidadPersonas : 1);
             nuevaReceta.setInstrucciones(instrucciones);
-            
-            // Establecer fecha actual
+            nuevaReceta.setUsuario(usuarioActual);
+            nuevaReceta.setAutorizada(false); // Siempre pendiente de aprobación
             nuevaReceta.setFecha(java.time.LocalDate.now());
             
-            // Procesar porciones
-            if (recetaData.get("porciones") != null) {
-                int porciones;
-                if (recetaData.get("porciones") instanceof Integer) {
-                    porciones = (Integer) recetaData.get("porciones");
-                } else if (recetaData.get("porciones") instanceof String) {
-                    porciones = Integer.parseInt((String) recetaData.get("porciones"));
-                } else {
-                    porciones = 1;
+            // Establecer tipo de receta
+            if (recetaData.get("idTipo") != null) {
+                Map<String, Object> tipoData = (Map<String, Object>) recetaData.get("idTipo");
+                Integer idTipo = (Integer) tipoData.get("idTipo");
+                if (idTipo != null) {
+                    Optional<TiposReceta> tipoReceta = tiposRecetaRepository.findById(idTipo);
+                    if (tipoReceta.isPresent()) {
+                        nuevaReceta.setIdTipo(tipoReceta.get());
+                    }
                 }
-                nuevaReceta.setPorciones(porciones);
-                nuevaReceta.setCantidadPersonas(porciones);
-            } else {
-                nuevaReceta.setPorciones(1);
-                nuevaReceta.setCantidadPersonas(1);
             }
             
-            // Establecer usuario
+            // Guardar la receta para obtener su ID
+            Recetas recetaGuardada = recetasRepository.save(nuevaReceta);
+            
+            // Procesar ingredientes
+            if (recetaData.get("ingredientes") != null && recetaData.get("ingredientes") instanceof List) {
+                List<Map<String, Object>> ingredientesData = (List<Map<String, Object>>) recetaData.get("ingredientes");
+                
+                for (Map<String, Object> ingredienteData : ingredientesData) {
+                    String nombre = (String) ingredienteData.get("nombre");
+                    Number cantidadNum = (Number) ingredienteData.get("cantidad");
+                    String unidadMedida = (String) ingredienteData.get("unidadMedida");
+                    
+                    if (nombre != null && !nombre.trim().isEmpty()) {
+                        Ingredientes ingrediente = new Ingredientes();
+                        ingrediente.setNombre(nombre.trim());
+                        ingrediente.setCantidad(cantidadNum != null ? cantidadNum.doubleValue() : 1.0);
+                        ingrediente.setUnidadMedida(unidadMedida != null ? unidadMedida : "unidad");
+                        ingrediente.setReceta(recetaGuardada);
+                        
+                        ingredientesRepository.save(ingrediente);
+                    }
+                }
+            }
+            
+            // Procesar fotos adicionales de la receta
+            if (recetaData.get("fotos") != null && recetaData.get("fotos") instanceof List) {
+                List<Map<String, Object>> fotosData = (List<Map<String, Object>>) recetaData.get("fotos");
+                
+                for (Map<String, Object> fotoData : fotosData) {
+                    String urlFoto = (String) fotoData.get("url");
+                    String tipoContenido = (String) fotoData.get("tipo");
+                    String extension = (String) fotoData.get("extension");
+                    
+                    if (urlFoto != null && !urlFoto.trim().isEmpty()) {
+                        Multimedia multimedia = new Multimedia();
+                        multimedia.setReceta(recetaGuardada);
+                        multimedia.setTipoContenido(tipoContenido != null ? tipoContenido : "foto");
+                        multimedia.setExtension(extension != null ? extension : ".jpg");
+                        multimedia.setUrlContenido(urlFoto);
+                        // No establecer idPaso porque es una foto de la receta en general
+                        
+                        multimediaRepository.save(multimedia);
+                    }
+                }
+            }
+            
+            // Procesar fotos de instrucciones (asociadas a pasos específicos)
+            if (recetaData.get("fotosInstrucciones") != null && recetaData.get("fotosInstrucciones") instanceof List) {
+                List<Map<String, Object>> fotosInstruccionesData = (List<Map<String, Object>>) recetaData.get("fotosInstrucciones");
+                
+                for (Map<String, Object> fotoInstruccionData : fotosInstruccionesData) {
+                    String urlFoto = (String) fotoInstruccionData.get("url");
+                    String tipoContenido = (String) fotoInstruccionData.get("tipo");
+                    String extension = (String) fotoInstruccionData.get("extension");
+                    Integer nroPaso = (Integer) fotoInstruccionData.get("nroPaso");
+                    
+                    if (urlFoto != null && !urlFoto.trim().isEmpty() && nroPaso != null) {
+                        // Buscar el paso correspondiente
+                        List<Pasos> pasosReceta = pasosRepository.findByIdRecetaOrderByNroPaso(recetaGuardada);
+                        Pasos pasoCorrespondiente = null;
+                        
+                        for (Pasos paso : pasosReceta) {
+                            if (paso.getNroPaso() == nroPaso) {
+                                pasoCorrespondiente = paso;
+                                break;
+                            }
+                        }
+                        
+                        Multimedia multimedia = new Multimedia();
+                        multimedia.setReceta(recetaGuardada);
+                        multimedia.setTipoContenido(tipoContenido != null ? tipoContenido : "foto_paso");
+                        multimedia.setExtension(extension != null ? extension : ".jpg");
+                        multimedia.setUrlContenido(urlFoto);
+                        
+                        if (pasoCorrespondiente != null) {
+                            multimedia.setIdPaso(pasoCorrespondiente);
+                        }
+                        
+                        multimediaRepository.save(multimedia);
+                    }
+                }
+            }
+            
+            System.out.println("Receta creada exitosamente con ID: " + recetaGuardada.getIdReceta());
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Receta creada exitosamente",
+                "idReceta", recetaGuardada.getIdReceta(),
+                "data", recetaGuardada
+            ));
+            
+        } catch (Exception e) {
+            System.err.println("Error creando receta: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of(
+                    "success", false,
+                    "message", "Error interno del servidor: " + e.getMessage()
+                ));
+        }
+    }
+
+    // Nuevo endpoint más permisivo que acepta el ID del usuario como parámetro
+    @PostMapping("/crearRecetaSimple")
+    public ResponseEntity<?> crearRecetaSimple(@RequestBody Map<String, Object> recetaData) {
+        try {
+            System.out.println("Datos recibidos para crear receta simple: " + recetaData);
+            
+            // Obtener usuario desde los datos de la receta en lugar del contexto de seguridad
+            Integer idUsuario = null;
+            
+            if (recetaData.get("usuario") != null && recetaData.get("usuario") instanceof Map) {
+                Map<String, Object> usuarioData = (Map<String, Object>) recetaData.get("usuario");
+                idUsuario = (Integer) usuarioData.get("idUsuario");
+            }
+            
+            if (idUsuario == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("success", false, "message", "ID de usuario requerido."));
+            }
+            
+            // Buscar el usuario por ID
+            Optional<Usuarios> usuarioOpt = usuariosRepository.findById(idUsuario);
+            if (!usuarioOpt.isPresent()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("success", false, "message", "Usuario no encontrado."));
+            }
+            
+            Usuarios usuario = usuarioOpt.get();
+
+            // Crear nueva receta
+            Recetas nuevaReceta = new Recetas();
+            
+            // Datos básicos de la receta
+            String nombreReceta = (String) recetaData.get("nombreReceta");
+            String descripcionReceta = (String) recetaData.get("descripcionReceta");
+            String fotoPrincipal = (String) recetaData.get("fotoPrincipal");
+            Integer porciones = (Integer) recetaData.get("porciones");
+            Integer cantidadPersonas = (Integer) recetaData.get("cantidadPersonas");
+            String instrucciones = (String) recetaData.get("instrucciones");
+            
+            nuevaReceta.setNombreReceta(nombreReceta);
+            nuevaReceta.setDescripcionReceta(descripcionReceta);
+            nuevaReceta.setFotoPrincipal(fotoPrincipal);
+            nuevaReceta.setPorciones(porciones != null ? porciones : 1);
+            nuevaReceta.setCantidadPersonas(cantidadPersonas != null ? cantidadPersonas : 1);
+            nuevaReceta.setInstrucciones(instrucciones);
+            nuevaReceta.setUsuario(usuario);
+            nuevaReceta.setAutorizada(false); // Siempre pendiente de aprobación
+            nuevaReceta.setFecha(java.time.LocalDate.now());
+            
+            // Establecer tipo de receta
+            if (recetaData.get("idTipo") != null) {
+                if (recetaData.get("idTipo") instanceof Map) {
+                    Map<String, Object> tipoData = (Map<String, Object>) recetaData.get("idTipo");
+                    Integer idTipo = (Integer) tipoData.get("idTipo");
+                    if (idTipo != null) {
+                        Optional<TiposReceta> tipoReceta = tiposRecetaRepository.findById(idTipo);
+                        if (tipoReceta.isPresent()) {
+                            nuevaReceta.setIdTipo(tipoReceta.get());
+                        }
+                    }
+                } else if (recetaData.get("idTipo") instanceof Integer) {
+                    Integer idTipo = (Integer) recetaData.get("idTipo");
+                    Optional<TiposReceta> tipoReceta = tiposRecetaRepository.findById(idTipo);
+                    if (tipoReceta.isPresent()) {
+                        nuevaReceta.setIdTipo(tipoReceta.get());
+                    }
+                }
+            }
+            
+            // Guardar la receta para obtener su ID
+            Recetas recetaGuardada = recetasRepository.save(nuevaReceta);
+            
+            // Procesar ingredientes
+            if (recetaData.get("ingredientes") != null && recetaData.get("ingredientes") instanceof List) {
+                List<Map<String, Object>> ingredientesData = (List<Map<String, Object>>) recetaData.get("ingredientes");
+                
+                for (Map<String, Object> ingredienteData : ingredientesData) {
+                    String nombre = (String) ingredienteData.get("nombre");
+                    Number cantidadNum = (Number) ingredienteData.get("cantidad");
+                    String unidadMedida = (String) ingredienteData.get("unidadMedida");
+                    
+                    if (nombre != null && !nombre.trim().isEmpty()) {
+                        Ingredientes ingrediente = new Ingredientes();
+                        ingrediente.setNombre(nombre.trim());
+                        ingrediente.setCantidad(cantidadNum != null ? cantidadNum.doubleValue() : 1.0);
+                        ingrediente.setUnidadMedida(unidadMedida != null ? unidadMedida : "unidad");
+                        ingrediente.setReceta(recetaGuardada);
+                        
+                        ingredientesRepository.save(ingrediente);
+                    }
+                }
+            }
+            
+            // Procesar pasos de las instrucciones
+            if (instrucciones != null && !instrucciones.trim().isEmpty()) {
+                String[] pasosTexto = instrucciones.split("\\n");
+                for (int i = 0; i < pasosTexto.length; i++) {
+                    String textoPaso = pasosTexto[i].trim();
+                    if (!textoPaso.isEmpty()) {
+                        Pasos paso = new Pasos();
+                        paso.setIdReceta(recetaGuardada);
+                        paso.setNroPaso(i + 1);
+                        paso.setTexto(textoPaso);
+                        
+                        pasosRepository.save(paso);
+                    }
+                }
+            }
+            
+            // Procesar multimedia/fotos adicionales
+            if (recetaData.get("fotos") != null && recetaData.get("fotos") instanceof List) {
+                List<Map<String, Object>> fotosData = (List<Map<String, Object>>) recetaData.get("fotos");
+                for (Map<String, Object> fotoData : fotosData) {
+                    String urlFoto = (String) fotoData.get("url");
+                    String tipoContenido = (String) fotoData.get("tipo");
+                    String extension = (String) fotoData.get("extension");
+                    Integer idPaso = (Integer) fotoData.get("idPaso"); // Para fotos de pasos específicos
+                    
+                    if (urlFoto != null && !urlFoto.trim().isEmpty()) {
+                        Multimedia multimedia = new Multimedia();
+                        multimedia.setReceta(recetaGuardada);
+                        multimedia.setUrlContenido(urlFoto);
+                        multimedia.setTipoContenido(tipoContenido != null ? tipoContenido : "foto");
+                        multimedia.setExtension(extension != null ? extension : "jpg");
+                        
+                        // Si es una foto de un paso específico, buscar el paso correspondiente
+                        if (idPaso != null) {
+                            List<Pasos> pasosReceta = pasosRepository.findByIdRecetaOrderByNroPaso(recetaGuardada);
+                            if (idPaso > 0 && idPaso <= pasosReceta.size()) {
+                                multimedia.setIdPaso(pasosReceta.get(idPaso - 1));
+                            }
+                        }
+                        
+                        multimediaRepository.save(multimedia);
+                    }
+                }
+            }
+            
+            // Procesar fotos de pasos desde las instrucciones (formato alternativo)
+            if (recetaData.get("fotosInstrucciones") != null && recetaData.get("fotosInstrucciones") instanceof List) {
+                List<Map<String, Object>> fotosInstruccionesData = (List<Map<String, Object>>) recetaData.get("fotosInstrucciones");
+                List<Pasos> pasosReceta = pasosRepository.findByIdRecetaOrderByNroPaso(recetaGuardada);
+                
+                for (Map<String, Object> fotoInstruccion : fotosInstruccionesData) {
+                    String urlFoto = (String) fotoInstruccion.get("url");
+                    Integer numeroPaso = (Integer) fotoInstruccion.get("paso");
+                    String tipoContenido = (String) fotoInstruccion.get("tipo");
+                    String extension = (String) fotoInstruccion.get("extension");
+                    
+                    if (urlFoto != null && !urlFoto.trim().isEmpty() && numeroPaso != null) {
+                        // Buscar el paso correspondiente
+                        Pasos pasoCorrespondiente = null;
+                        for (Pasos paso : pasosReceta) {
+                            if (paso.getNroPaso() == numeroPaso) {
+                                pasoCorrespondiente = paso;
+                                break;
+                            }
+                        }
+                        
+                        if (pasoCorrespondiente != null) {
+                            Multimedia multimedia = new Multimedia();
+                            multimedia.setReceta(recetaGuardada);
+                            multimedia.setIdPaso(pasoCorrespondiente);
+                            multimedia.setUrlContenido(urlFoto);
+                            multimedia.setTipoContenido(tipoContenido != null ? tipoContenido : "foto");
+                            multimedia.setExtension(extension != null ? extension : "jpg");
+                            
+                            multimediaRepository.save(multimedia);
+                        }
+                    }
+                }
+            }
+            
+            System.out.println("Receta creada exitosamente con ID: " + recetaGuardada.getIdReceta());
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Receta creada exitosamente",
+                "idReceta", recetaGuardada.getIdReceta(),
+                "data", recetaGuardada
+            ));
+            
+        } catch (Exception e) {
+            System.err.println("Error creando receta simple: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of(
+                    "success", false,
+                    "message", "Error interno del servidor: " + e.getMessage()
+                ));
+        }
+    }
+
+    //Endpoint específico para actualización de recetas con pasos y fotos
+    @PutMapping("/actualizarRecetaConPasos/{idReceta}")
+    public ResponseEntity<?> actualizarRecetaConPasos(@PathVariable Integer idReceta, @RequestBody Map<String, Object> recetaData) {
+        try {
+            System.out.println("=== ACTUALIZANDO RECETA CON PASOS ===");
+            System.out.println("ID Receta: " + idReceta);
+            System.out.println("Datos recibidos: " + recetaData);
+            
+            Optional<Recetas> recetaExistente = recetasRepository.findById(idReceta);
+            
+            if (!recetaExistente.isPresent()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Receta no encontrada");
+            }
+            
+            Recetas receta = recetaExistente.get();
+            
+            // Verificar permisos de usuario
             Integer idUsuario = null;
             if (recetaData.get("idUsuario") != null) {
                 idUsuario = (Integer) recetaData.get("idUsuario");
@@ -2861,49 +3322,73 @@ public class Controlador {
                 idUsuario = (Integer) ((Map<String, Object>)recetaData.get("usuario")).get("idUsuario");
             }
             
-            if (idUsuario != null) {
-                Usuarios usuario = usuariosDAO.findById(idUsuario);
-                if (usuario != null) {
-                    nuevaReceta.setUsuario(usuario);
-                } else {
-                    return ResponseEntity.badRequest().body("Usuario no encontrado");
-                }
-            } else {
-                return ResponseEntity.badRequest().body("ID de usuario no proporcionado");
+            if (idUsuario == null || !receta.getUsuario().getIdUsuario().equals(idUsuario)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("No tienes permisos para editar esta receta");
             }
             
-            // Establecer tipo de receta
-            Integer idTipo = null;
-            if (recetaData.get("idTipo") != null && recetaData.get("idTipo") instanceof Map) {
+            // Actualizar campos básicos
+            if (recetaData.get("nombreReceta") != null) {
+                receta.setNombreReceta((String) recetaData.get("nombreReceta"));
+            }
+            if (recetaData.get("descripcionReceta") != null) {
+                receta.setDescripcionReceta((String) recetaData.get("descripcionReceta"));
+            }
+            if (recetaData.get("fotoPrincipal") != null) {
+                receta.setFotoPrincipal((String) recetaData.get("fotoPrincipal"));
+            }
+            if (recetaData.get("porciones") != null) {
+                receta.setPorciones((Integer) recetaData.get("porciones"));
+            }
+            if (recetaData.get("cantidadPersonas") != null) {
+                receta.setCantidadPersonas((Integer) recetaData.get("cantidadPersonas"));
+            }
+            
+            // Actualizar tipo de receta si se proporciona
+            if (recetaData.get("idTipo") != null) {
                 Map<String, Object> tipoMap = (Map<String, Object>) recetaData.get("idTipo");
-                if (tipoMap.get("idTipo") != null) {
-                    idTipo = (Integer) tipoMap.get("idTipo");
-                }
-            } else if (recetaData.get("idTipo") != null && recetaData.get("idTipo") instanceof Integer) {
-                idTipo = (Integer) recetaData.get("idTipo");
-            }
-            
-            if (idTipo != null) {
+                Integer idTipo = (Integer) tipoMap.get("idTipo");
                 Optional<TiposReceta> tipoReceta = tiposRecetaRepository.findById(idTipo);
                 if (tipoReceta.isPresent()) {
-                    nuevaReceta.setIdTipo(tipoReceta.get());
-                } else {
-                    nuevaReceta.setIdTipo(tiposRecetaRepository.findById(1).orElse(null)); // Tipo por defecto
+                    receta.setIdTipo(tipoReceta.get());
                 }
-            } else {
-                nuevaReceta.setIdTipo(tiposRecetaRepository.findById(1).orElse(null)); // Tipo por defecto
             }
             
-            // Autorización pendiente
-            nuevaReceta.setAutorizada(false);
-            
-            // Guardar la receta primero para obtener el ID
-            recetasRepository.save(nuevaReceta);
-            
-            // Procesar ingredientes
-            if (recetaData.get("ingredientes") != null && recetaData.get("ingredientes") instanceof List) {
-                List<Map<String, Object>> ingredientesData = (List<Map<String, Object>>) recetaData.get("ingredientes");
+            // Eliminar y actualizar pasos
+            if (recetaData.get("pasos") != null && recetaData.get("pasos") instanceof List) {
+                // Eliminar pasos existentes
+                List<Pasos> pasosExistentes = pasosRepository.findByIdRecetaOrderByNroPaso(receta);
+                for (Pasos paso : pasosExistentes) {
+                    pasosRepository.delete(paso);
+                }
                 
+                // Agregar nuevos pasos
+                List<Map<String, Object>> pasosData = (List<Map<String, Object>>) recetaData.get("pasos");
+                for (int i = 0; i < pasosData.size(); i++) {
+                    Map<String, Object> pasoData = pasosData.get(i);
+                    String textoPaso = (String) pasoData.get("texto");
+                    
+                    if (textoPaso != null && !textoPaso.trim().isEmpty()) {
+                        Pasos paso = new Pasos();
+                        paso.setIdReceta(receta);
+                        paso.setNroPaso(i + 1);
+                        paso.setTexto(textoPaso.trim());
+                        pasosRepository.save(paso);
+                    }
+                }
+            }
+            
+            // Eliminar y actualizar ingredientes
+            if (recetaData.get("ingredientes") != null && recetaData.get("ingredientes") instanceof List) {
+                // Eliminar ingredientes existentes
+                List<Ingredientes> ingredientesExistentes = receta.getIngredientes();
+                for (Ingredientes ing : ingredientesExistentes) {
+                    ingredientesRepository.delete(ing);
+                }
+                receta.setIngredientes(new ArrayList<>());
+                
+                // Agregar nuevos ingredientes
+                List<Map<String, Object>> ingredientesData = (List<Map<String, Object>>) recetaData.get("ingredientes");
                 for (Map<String, Object> ingredienteData : ingredientesData) {
                     String nombre = (String) ingredienteData.get("nombre");
                     Double cantidad = null;
@@ -2932,25 +3417,59 @@ public class Controlador {
                         ingrediente.setNombre(nombre);
                         ingrediente.setCantidad(cantidad != null ? cantidad : 1.0);
                         ingrediente.setUnidadMedida(unidadMedida);
-                        ingrediente.setReceta(nuevaReceta);
-                        
+                        ingrediente.setReceta(receta);
                         ingredientesRepository.save(ingrediente);
+                        receta.getIngredientes().add(ingrediente);
                     }
                 }
             }
             
-            // Devolver la receta creada
+            // Actualizar multimedia/fotos
+            if (recetaData.get("fotos") != null && recetaData.get("fotos") instanceof List) {
+                // Eliminar multimedia existente
+                List<Multimedia> multimediaExistente = multimediaRepository.findByReceta(receta);
+                for (Multimedia media : multimediaExistente) {
+                    multimediaRepository.delete(media);
+                }
+                
+                // Agregar nuevas fotos
+                List<Map<String, Object>> fotosData = (List<Map<String, Object>>) recetaData.get("fotos");
+                for (Map<String, Object> fotoData : fotosData) {
+                    String urlFoto = (String) fotoData.get("url");
+                    String tipoContenido = (String) fotoData.get("tipo");
+                    String extension = (String) fotoData.get("extension");
+                    
+                    if (urlFoto != null && !urlFoto.trim().isEmpty()) {
+                        Multimedia multimedia = new Multimedia();
+                        multimedia.setReceta(receta);
+                        multimedia.setUrlContenido(urlFoto);
+                        multimedia.setTipoContenido(tipoContenido != null ? tipoContenido : "foto");
+                        multimedia.setExtension(extension != null ? extension : ".jpg");
+                        multimediaRepository.save(multimedia);
+                    }
+                }
+            }
+            
+            // Marcar como no autorizada para nueva revisión
+            receta.setAutorizada(false);
+            
+            // Actualizar fecha
+            receta.setFecha(java.time.LocalDate.now());
+            
+            // Guardar receta
+            recetasRepository.save(receta);
+            
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("message", "Receta creada exitosamente");
-            response.put("idReceta", nuevaReceta.getIdReceta());
+            response.put("message", "Receta actualizada exitosamente");
+            response.put("idReceta", receta.getIdReceta());
             
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al crear la receta: " + e.getMessage());
+                .body("Error al actualizar la receta: " + e.getMessage());
         }
     }
 
@@ -3061,21 +3580,55 @@ public class Controlador {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debe iniciar sesión para eliminar una receta guardada.");
             }
             
-            // Verificar si existe la receta guardada
+            // Verificar si la receta está guardada
             if (!recetasGuardadasRepository.existsByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario())) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No se encontró la receta guardada.");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Esta receta no está en tu lista de guardadas.");
             }
             
             // Eliminar la receta guardada
             recetasGuardadasRepository.deleteByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario());
             
-            return ResponseEntity.ok("Receta eliminada de guardados exitosamente.");
+            return ResponseEntity.ok("Receta eliminada de tus guardadas.");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al eliminar la receta guardada: " + e.getMessage());
+        }
+    }
+
+    // Obtener multimedia de una receta específica
+    @GetMapping("/getMultimediaReceta/{idReceta}")
+    public ResponseEntity<?> getMultimediaReceta(@PathVariable Integer idReceta) {
+        try {
+            Optional<Recetas> recetaOpt = recetasRepository.findById(idReceta);
+            if (!recetaOpt.isPresent()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Receta no encontrada");
+            }
+            
+            Recetas receta = recetaOpt.get();
+            List<Multimedia> multimedia = multimediaRepository.findByReceta(receta);
+            
+            // Formatear multimedia para respuesta
+            List<Map<String, Object>> multimediaResponse = new ArrayList<>();
+            for (Multimedia media : multimedia) {
+                Map<String, Object> mediaMap = new HashMap<>();
+                mediaMap.put("idContenido", media.getIdContenido());
+                mediaMap.put("urlContenido", media.getUrlContenido());
+                mediaMap.put("tipoContenido", media.getTipoContenido());
+                mediaMap.put("extension", media.getExtension());
+                mediaMap.put("idPaso", media.getIdPaso() != null ? media.getIdPaso().getNroPaso() : null);
+                multimediaResponse.add(mediaMap);
+            }
+            
+            return ResponseEntity.ok(multimediaResponse);
+            
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al eliminar la receta guardada: " + e.getMessage());
+                .body("Error al obtener multimedia: " + e.getMessage());
         }
     }
 }
 
 //hola 
+

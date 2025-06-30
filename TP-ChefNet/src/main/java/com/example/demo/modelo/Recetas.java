@@ -67,6 +67,14 @@ public class Recetas {
 	
 	private String instrucciones;
 	
+	@OneToMany(mappedBy = "idReceta", cascade = CascadeType.ALL, orphanRemoval = true)
+	@JsonIgnore
+	private List<Pasos> pasos = new ArrayList<>();
+	
+	@OneToMany(mappedBy = "receta", cascade = CascadeType.ALL, orphanRemoval = true)
+	@JsonIgnore
+	private List<Multimedia> multimedia = new ArrayList<>();
+	
 	@OneToMany(mappedBy = "receta", cascade = CascadeType.ALL, orphanRemoval = true)
 	@JsonIgnore
 	private List<Ingredientes> ingredientes = new ArrayList<>();
@@ -217,6 +225,22 @@ public class Recetas {
 
 	public void setInstrucciones(String instrucciones) {
 	    this.instrucciones = instrucciones;
+	}
+	
+	public List<Pasos> getPasos() {
+	    return pasos;
+	}
+
+	public void setPasos(List<Pasos> pasos) {
+	    this.pasos = pasos;
+	}
+	
+	public List<Multimedia> getMultimedia() {
+	    return multimedia;
+	}
+
+	public void setMultimedia(List<Multimedia> multimedia) {
+	    this.multimedia = multimedia;
 	}
 	
 	public Recetas clonar() {
