@@ -122,12 +122,12 @@ public class UsuariosDAO {
 
     // VISITANTES: Solo email de confirmación, sin código de verificación
     public boolean registrarVisitante(String correoElectronico, String alias) {
-        System.out.println("🟡 UsuariosDAO: Iniciando registro de visitante - Email: " + correoElectronico + ", Alias: " + alias);
+        System.out.println("UsuariosDAO: Iniciando registro de visitante - Email: " + correoElectronico + ", Alias: " + alias);
         
         // Verificar si el correo ya está registrado
         Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(correoElectronico);
         if (usuarioExistentePorCorreo.isPresent()) {
-            System.out.println("🔴 UsuariosDAO: Email ya registrado: " + correoElectronico);
+            System.out.println("UsuariosDAO: Email ya registrado: " + correoElectronico);
             return false; // El correo ya está registrado
         }
 
@@ -135,7 +135,7 @@ public class UsuariosDAO {
         boolean aliasExiste = usuariosRepository.findAll().stream()
             .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
         if (aliasExiste) {
-            System.out.println("🔴 UsuariosDAO: Alias ya registrado: " + alias);
+            System.out.println("UsuariosDAO: Alias ya registrado: " + alias);
             return false; // El alias ya está registrado
         }
 
@@ -153,12 +153,12 @@ public class UsuariosDAO {
             nuevoVisitante.setRol("visitante");
 
         // Guardar el nuevo visitante
-            System.out.println("🟡 UsuariosDAO: Guardando visitante en base de datos...");
+            System.out.println("UsuariosDAO: Guardando visitante en base de datos...");
         usuariosRepository.save(nuevoVisitante);
-            System.out.println("🟢 UsuariosDAO: Visitante guardado exitosamente en base de datos");
+            System.out.println("UsuariosDAO: Visitante guardado exitosamente en base de datos");
 
             // Enviar email de confirmación simple (sin código) - CON TIMEOUT
-            System.out.println("🟡 UsuariosDAO: Enviando email de confirmación con timeout...");
+            System.out.println("UsuariosDAO: Enviando email de confirmación con timeout...");
             boolean emailEnviado = false;
             try {
                 // Crear un thread separado para el envío de email con timeout
@@ -166,7 +166,7 @@ public class UsuariosDAO {
                     try {
                         enviarEmailConfirmacionVisitante(correoElectronico, alias);
                     } catch (Exception e) {
-                        System.out.println("🔴 Error en thread de email: " + e.getMessage());
+                        System.out.println("Error en thread de email: " + e.getMessage());
                     }
                 });
                 
@@ -174,21 +174,21 @@ public class UsuariosDAO {
                 emailThread.join(30000); // Timeout de 30 segundos (aumentado de 5000 a 30000)
                 
                 if (emailThread.isAlive()) {
-                    System.out.println("🟠 UsuariosDAO: Timeout enviando email, pero registro completado");
+                    System.out.println("UsuariosDAO: Timeout enviando email, pero registro completado");
                     emailThread.interrupt(); // Intentar interrumpir el thread
                 } else {
-                    System.out.println("🟢 UsuariosDAO: Proceso de email completado");
+                    System.out.println("UsuariosDAO: Proceso de email completado");
                     emailEnviado = true;
                 }
             } catch (Exception e) {
-                System.out.println("🟠 UsuariosDAO: Error enviando email, pero registro completado: " + e.getMessage());
+                System.out.println("UsuariosDAO: Error enviando email, pero registro completado: " + e.getMessage());
             }
 
             // Retornar true siempre que el visitante se haya guardado en BD, independientemente del email
             return true; 
             
         } catch (Exception e) {
-            System.out.println("🔴 UsuariosDAO: Error guardando visitante: " + e.getMessage());
+            System.out.println("UsuariosDAO: Error guardando visitante: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -196,12 +196,12 @@ public class UsuariosDAO {
     
     // Método de prueba para verificar el envío de emails
     public void testEmailSend(String correoElectronico) {
-        System.out.println("🧪 TEST: Iniciando prueba de envío de email a: " + correoElectronico);
+        System.out.println("TEST: Iniciando prueba de envío de email a: " + correoElectronico);
         
         try {
             // Verificar conectividad antes de intentar enviar
             if (emailSender == null) {
-                System.out.println("🔴 TEST: EmailSender no está configurado");
+                System.out.println("TEST: EmailSender no está configurado");
                 throw new RuntimeException("EmailSender no configurado");
             }
             
@@ -216,27 +216,27 @@ public class UsuariosDAO {
                 "Prueba automática del sistema"
             );
             
-            System.out.println("🧪 TEST: Enviando email de prueba...");
+            System.out.println("TEST: Enviando email de prueba...");
             long startTime = System.currentTimeMillis();
             emailSender.send(mensaje);
             long endTime = System.currentTimeMillis();
             
-            System.out.println("🟢 TEST: Email de prueba enviado exitosamente en " + (endTime - startTime) + "ms");
+            System.out.println("TEST: Email de prueba enviado exitosamente en " + (endTime - startTime) + "ms");
             
         } catch (org.springframework.mail.MailSendException e) {
-            System.out.println("🔴 TEST: Error enviando email (MailSendException): " + e.getMessage());
+            System.out.println("TEST: Error enviando email (MailSendException): " + e.getMessage());
             throw new RuntimeException("Error de envío: " + e.getMessage());
         } catch (org.springframework.mail.MailAuthenticationException e) {
-            System.out.println("🔴 TEST: Error de autenticación de email: " + e.getMessage());
+            System.out.println("TEST: Error de autenticación de email: " + e.getMessage());
             throw new RuntimeException("Error de autenticación: " + e.getMessage());
         } catch (org.springframework.mail.MailException e) {
-            System.out.println("🔴 TEST: Error de configuración de email: " + e.getMessage());
+            System.out.println("TEST: Error de configuración de email: " + e.getMessage());
             throw new RuntimeException("Error de configuración: " + e.getMessage());
         } catch (Exception e) {
-            System.out.println("🔴 TEST: Error general enviando email: " + e.getMessage());
-            System.out.println("🔴 TEST: Tipo de error: " + e.getClass().getSimpleName());
+            System.out.println("TEST: Error general enviando email: " + e.getMessage());
+            System.out.println("TEST: Tipo de error: " + e.getClass().getSimpleName());
             if (e.getCause() != null) {
-                System.out.println("🔴 TEST: Causa del error: " + e.getCause().getMessage());
+                System.out.println("TEST: Causa del error: " + e.getCause().getMessage());
             }
             e.printStackTrace(); 
             throw new RuntimeException("Error general: " + e.getMessage());
@@ -245,7 +245,7 @@ public class UsuariosDAO {
 
     // USUARIOS: Registro en 2 etapas con código de verificación
     public boolean registrarUsuarioEtapa1(String correoElectronico, String alias) {
-        System.out.println("🟡 UsuariosDAO: Iniciando registro de usuario con verificación - Email: " + correoElectronico + ", Alias: " + alias);
+        System.out.println("UsuariosDAO: Iniciando registro de usuario con verificación - Email: " + correoElectronico + ", Alias: " + alias);
 
         try {
             Usuarios nuevoUsuario = new Usuarios();
@@ -255,13 +255,13 @@ public class UsuariosDAO {
             nuevoUsuario.setHabilitado("Pendiente"); // Pendiente de verificación por correo
             
             usuariosRepository.save(nuevoUsuario);
-            System.out.println("🟢 UsuariosDAO: Usuario (etapa 1) guardado en la base de datos.");
+            System.out.println("UsuariosDAO: Usuario (etapa 1) guardado en la base de datos.");
 
             // Enviar código de verificación
             return enviarCodigoVerificacionUsuario(correoElectronico);
 
         } catch (Exception e) {
-            System.out.println("🔴 UsuariosDAO: Error en la etapa 1 del registro de usuario: " + e.getMessage());
+            System.out.println("UsuariosDAO: Error en la etapa 1 del registro de usuario: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -269,12 +269,12 @@ public class UsuariosDAO {
     
     // VISITANTES: Registro en 2 etapas con código de verificación
     public boolean registrarVisitanteEtapa1(String correoElectronico, String alias) {
-        System.out.println("🟡 UsuariosDAO: Iniciando registro de visitante con verificación - Email: " + correoElectronico + ", Alias: " + alias);
+        System.out.println("UsuariosDAO: Iniciando registro de visitante con verificación - Email: " + correoElectronico + ", Alias: " + alias);
         
         // Verificar si el correo ya está registrado
         Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(correoElectronico);
         if (usuarioExistentePorCorreo.isPresent()) {
-            System.out.println("🔴 UsuariosDAO: Email ya registrado: " + correoElectronico);
+            System.out.println("UsuariosDAO: Email ya registrado: " + correoElectronico);
             return false; // El correo ya está registrado
         }
 
@@ -282,7 +282,7 @@ public class UsuariosDAO {
         boolean aliasExiste = usuariosRepository.findAll().stream()
             .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
         if (aliasExiste) {
-            System.out.println("🔴 UsuariosDAO: Alias ya registrado: " + alias);
+            System.out.println("UsuariosDAO: Alias ya registrado: " + alias);
             return false; // El alias ya está registrado
         }
 
@@ -300,15 +300,15 @@ public class UsuariosDAO {
             nuevoVisitante.setRol("visitante");
 
             // Guardar el nuevo visitante en estado pendiente
-            System.out.println("🟡 UsuariosDAO: Guardando visitante pendiente en base de datos...");
+            System.out.println("UsuariosDAO: Guardando visitante pendiente en base de datos...");
             usuariosRepository.save(nuevoVisitante);
-            System.out.println("🟢 UsuariosDAO: Visitante pendiente guardado exitosamente en base de datos");
+            System.out.println("UsuariosDAO: Visitante pendiente guardado exitosamente en base de datos");
 
             // Enviar código de verificación
             return enviarCodigoVerificacionVisitante(correoElectronico);
             
         } catch (Exception e) {
-            System.out.println("🔴 UsuariosDAO: Error guardando visitante pendiente: " + e.getMessage());
+            System.out.println("UsuariosDAO: Error guardando visitante pendiente: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -316,13 +316,13 @@ public class UsuariosDAO {
 
     // Verificar código de verificación para visitante
     public Usuarios verificarCodigoVisitante(String correoElectronico, String codigoIngresado) {
-        System.out.println("🟡 UsuariosDAO: Verificando código de visitante - Email: " + correoElectronico + ", Código: " + codigoIngresado);
+        System.out.println("UsuariosDAO: Verificando código de visitante - Email: " + correoElectronico + ", Código: " + codigoIngresado);
         
         try {
             // Buscar el visitante por email
             Optional<Usuarios> visitanteOpt = usuariosRepository.findByMail(correoElectronico);
             if (!visitanteOpt.isPresent()) {
-                System.out.println("🔴 UsuariosDAO: Visitante no encontrado: " + correoElectronico);
+                System.out.println("UsuariosDAO: Visitante no encontrado: " + correoElectronico);
                 return null;
             }
 
@@ -330,7 +330,7 @@ public class UsuariosDAO {
             
             // Verificar que sea un visitante y esté pendiente de verificación
             if (!"visitante".equals(visitante.getTipo()) || !"No".equals(visitante.getHabilitado())) {
-                System.out.println("🔴 UsuariosDAO: Visitante no está en estado pendiente de verificación");
+                System.out.println("UsuariosDAO: Visitante no está en estado pendiente de verificación");
                 return null;
             }
 
@@ -343,15 +343,15 @@ public class UsuariosDAO {
                 visitante.setCodigoRecuperacion(null); // Limpiar código usado
                 usuariosRepository.save(visitante);
                 
-                System.out.println("🟢 UsuariosDAO: Visitante verificado y habilitado exitosamente");
+                System.out.println("UsuariosDAO: Visitante verificado y habilitado exitosamente");
                 return visitante; // Retornar el usuario completo
             } else {
-                System.out.println("🔴 UsuariosDAO: Código de verificación incorrecto");
+                System.out.println("UsuariosDAO: Código de verificación incorrecto");
                 return null;
             }
             
         } catch (Exception e) {
-            System.out.println("🔴 UsuariosDAO: Error verificando código de visitante: " + e.getMessage());
+            System.out.println("UsuariosDAO: Error verificando código de visitante: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
@@ -359,13 +359,13 @@ public class UsuariosDAO {
 
     // Enviar código de verificación para visitante (reutilizar lógica de usuarios)
     public boolean enviarCodigoVerificacionVisitante(String correoElectronico) {
-        System.out.println("🟡 UsuariosDAO: Enviando código de verificación a visitante: " + correoElectronico);
+        System.out.println("UsuariosDAO: Enviando código de verificación a visitante: " + correoElectronico);
         
         try {
             // Buscar el visitante por email
             Optional<Usuarios> visitanteOpt = usuariosRepository.findByMail(correoElectronico);
             if (!visitanteOpt.isPresent()) {
-                System.out.println("🔴 UsuariosDAO: Visitante no encontrado: " + correoElectronico);
+                System.out.println("UsuariosDAO: Visitante no encontrado: " + correoElectronico);
                 return false;
             }
 
@@ -384,9 +384,9 @@ public class UsuariosDAO {
             mensaje.setTo(correoElectronico);
             mensaje.setSubject("Código de verificación - ChefNet");
             mensaje.setText(
-                "¡Hola! 👨‍🍳\n\n" +
+                "¡Hola!\n\n" +
                 "Tu código de verificación para completar el registro como visitante en ChefNet es:\n\n" +
-                "📱 " + codigo + "\n\n" +
+                codigo + "\n\n" +
                 "Este código es válido por 24 horas.\n\n" +
                 "Si no solicitaste este código, ignora este mensaje.\n\n" +
                 "¡Gracias por unirte a ChefNet!\n\n" +
@@ -394,13 +394,13 @@ public class UsuariosDAO {
                 "El equipo de ChefNet"
             );
             
-            System.out.println("🟡 UsuariosDAO: Enviando email con código: " + codigo);
+            System.out.println("UsuariosDAO: Enviando email con código: " + codigo);
             emailSender.send(mensaje);
-            System.out.println("🟢 UsuariosDAO: Código de verificación enviado exitosamente");
+            System.out.println("UsuariosDAO: Código de verificación enviado exitosamente");
             return true;
             
         } catch (Exception e) {
-            System.out.println("🔴 UsuariosDAO: Error enviando código de verificación: " + e.getMessage());
+            System.out.println("UsuariosDAO: Error enviando código de verificación: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -409,11 +409,11 @@ public class UsuariosDAO {
     // Email de confirmación simple para visitantes (sin código)
     private void enviarEmailConfirmacionVisitante(String correoElectronico, String alias) {
         try {
-            System.out.println("🟡 Preparando email de confirmación para: " + correoElectronico + " (" + alias + ")");
+            System.out.println("Preparando email de confirmación para: " + correoElectronico + " (" + alias + ")");
             
             // Verificar conectividad antes de intentar enviar
             if (emailSender == null) {
-                System.out.println("🔴 EmailSender no está configurado");
+                System.out.println("EmailSender no está configurado");
                 return;
             }
             
@@ -422,7 +422,7 @@ public class UsuariosDAO {
             mensaje.setTo(correoElectronico);
             mensaje.setSubject("¡Te registraste correctamente en ChefNet!");
             mensaje.setText(
-                "¡Hola " + alias + "! 👨‍🍳\n\n" +
+                "¡Hola " + alias + "! \n\n" +
                 "Te registraste correctamente como visitante en ChefNet.\n\n" +
                 "Ya puedes explorar nuestras recetas y ver los cursos disponibles.\n\n" +
                 "Si en algún momento deseas acceder a funcionalidades adicionales como " +
@@ -432,33 +432,33 @@ public class UsuariosDAO {
                 "El equipo de ChefNet"
             );
             
-            System.out.println("🟡 Enviando email de confirmación a: " + correoElectronico);
-            System.out.println("🟡 Asunto: " + mensaje.getSubject());
-            System.out.println("🟡 Remitente: " + mensaje.getFrom());
+            System.out.println("Enviando email de confirmación a: " + correoElectronico);
+            System.out.println("Asunto: " + mensaje.getSubject());
+            System.out.println("Remitente: " + mensaje.getFrom());
             
             // Intentar enviar con logging detallado
             long startTime = System.currentTimeMillis();
             emailSender.send(mensaje);
             long endTime = System.currentTimeMillis();
             
-            System.out.println("🟢 Email de confirmación enviado exitosamente a: " + correoElectronico + " en " + (endTime - startTime) + "ms");
+            System.out.println("Email de confirmación enviado exitosamente a: " + correoElectronico + " en " + (endTime - startTime) + "ms");
             
         } catch (org.springframework.mail.MailSendException e) {
-            System.out.println("🔴 Error enviando email (MailSendException): " + e.getMessage());
+            System.out.println("Error enviando email (MailSendException): " + e.getMessage());
             if (e.getFailedMessages() != null && !e.getFailedMessages().isEmpty()) {
-                System.out.println("🔴 Mensajes fallidos: " + e.getFailedMessages().size());
+                System.out.println("Mensajes fallidos: " + e.getFailedMessages().size());
             }
         } catch (org.springframework.mail.MailAuthenticationException e) {
-            System.out.println("🔴 Error de autenticación de email: " + e.getMessage());
+            System.out.println("Error de autenticación de email: " + e.getMessage());
         } catch (org.springframework.mail.MailException e) {
-            System.out.println("🔴 Error de configuración de email: " + e.getMessage());
+            System.out.println("Error de configuración de email: " + e.getMessage());
         } catch (Exception e) {
-            System.out.println("🔴 Error general enviando email a " + correoElectronico + ": " + e.getMessage());
-            System.out.println("🔴 Tipo de error: " + e.getClass().getSimpleName());
+            System.out.println("Error general enviando email a " + correoElectronico + ": " + e.getMessage());
+            System.out.println("Tipo de error: " + e.getClass().getSimpleName());
             // Verificar si es un error de conectividad
             if (e.getCause() != null) {
-                System.out.println("🔴 Causa del error: " + e.getCause().getMessage());
-                System.out.println("🔴 Tipo de causa: " + e.getCause().getClass().getSimpleName());
+                System.out.println("Causa del error: " + e.getCause().getMessage());
+                System.out.println("Tipo de causa: " + e.getCause().getClass().getSimpleName());
             }
             e.printStackTrace(); // Stack trace completo para debugging
         }
@@ -466,12 +466,12 @@ public class UsuariosDAO {
 
     // Envía el correo de verificación para USUARIOS
     public boolean enviarCodigoVerificacionUsuario(String correoElectronico) {
-        System.out.println("🟡 UsuariosDAO: Preparando para enviar código de verificación a USUARIO: " + correoElectronico);
+        System.out.println("UsuariosDAO: Preparando para enviar código de verificación a USUARIO: " + correoElectronico);
         
         Optional<Usuarios> usuarioOpt = usuariosRepository.findByMail(correoElectronico);
         
         if (!usuarioOpt.isPresent()) {
-            System.out.println("🔴 UsuariosDAO: No se encontró usuario para enviar código: " + correoElectronico);
+            System.out.println("UsuariosDAO: No se encontró usuario para enviar código: " + correoElectronico);
             return false;
         }
         
@@ -479,7 +479,7 @@ public class UsuariosDAO {
         
         // Si el usuario ya está habilitado, no enviar código
         if ("Si".equals(usuario.getHabilitado())) {
-            System.out.println("🟠 UsuariosDAO: El usuario ya está habilitado, no se requiere código de verificación.");
+            System.out.println("UsuariosDAO: El usuario ya está habilitado, no se requiere código de verificación.");
             return false;
         }
         
@@ -490,7 +490,7 @@ public class UsuariosDAO {
         usuario.setCodigoVerificacionTimestamp(LocalDateTime.now());
         usuariosRepository.save(usuario);
         
-        System.out.println("🟢 UsuariosDAO: Código de verificación de USUARIO generado (" + codigo + ") y guardado para: " + correoElectronico);
+        System.out.println("UsuariosDAO: Código de verificación de USUARIO generado (" + codigo + ") y guardado para: " + correoElectronico);
         
         try {
             // Crear el mensaje con MimeMessage para formato HTML
@@ -498,11 +498,11 @@ public class UsuariosDAO {
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, "utf-8");
 
             // Contenido del email
-            String htmlMsg = "<h3>¡Bienvenido a ChefNet! \uD83D\uDC68\u200D\uD83C\uDF73</h3>"
+            String htmlMsg = "<h3>¡Bienvenido a ChefNet!</h3>"
                            + "<p>Para completar tu registro como <strong>usuario</strong>, necesitamos verificar tu email.</p>"
                            + "<p>Tu código de verificación es: <strong>" + codigo + "</strong></p>"
-                           + "<p>⏰ Este código es válido por 24 horas.</p>"
-                           + "<p>🔒 Por tu seguridad, no compartas este código con nadie.</p>"
+                           + "<p>Este código es válido por 24 horas.</p>"
+                           + "<p>Por tu seguridad, no compartas este código con nadie.</p>"
                            + "<p>Una vez verificado, podrás completar tu perfil con contraseña y datos adicionales.</p>"
                            + "<p>¡Gracias por unirte a ChefNet!</p>"
                            + "<hr>"
@@ -514,13 +514,13 @@ public class UsuariosDAO {
             helper.setFrom("rossomaxi685@gmail.com");
 
             emailSender.send(mimeMessage);
-            System.out.println("🟢 UsuariosDAO: Email de verificación para USUARIO enviado a: " + correoElectronico);
+            System.out.println("UsuariosDAO: Email de verificación para USUARIO enviado a: " + correoElectronico);
             return true;
         } catch (MessagingException e) {
-            System.out.println("🔴 UsuariosDAO: Error creando email HTML para USUARIO: " + e.getMessage());
+            System.out.println("UsuariosDAO: Error creando email HTML para USUARIO: " + e.getMessage());
             return false;
         } catch (Exception e) {
-            System.out.println("🔴 UsuariosDAO: Error general enviando email a USUARIO: " + e.getMessage());
+            System.out.println("UsuariosDAO: Error general enviando email a USUARIO: " + e.getMessage());
             return false;
         }
     }
@@ -532,7 +532,7 @@ public class UsuariosDAO {
             
             // Simplificado: solo verificar si el usuario ya está habilitado
             if ("Si".equals(usuario.getHabilitado())) {
-                System.out.println("🔴 UsuariosDAO: Usuario ya se encuentra habilitado.");
+                System.out.println("UsuariosDAO: Usuario ya se encuentra habilitado.");
                 return false;
             }
 
@@ -548,10 +548,10 @@ public class UsuariosDAO {
                     if (horasTranscurridas <= 24) {
                         // Código válido y dentro del tiempo límite.
                         // Se habilita al completar el perfil, así que aquí solo validamos.
-                        System.out.println("🟢 UsuariosDAO: Código de USUARIO verificado exitosamente para: " + correoElectronico);
+                        System.out.println("UsuariosDAO: Código de USUARIO verificado exitosamente para: " + correoElectronico);
                         return true;
                     } else {
-                        System.out.println("🔴 UsuariosDAO: Código de USUARIO expirado para: " + correoElectronico);
+                        System.out.println("UsuariosDAO: Código de USUARIO expirado para: " + correoElectronico);
                         // Opcional: Limpiar código expirado
                         usuario.setCodigoVerificacion(null);
                         usuario.setCodigoVerificacionTimestamp(null);
@@ -561,7 +561,7 @@ public class UsuariosDAO {
                 }
             }
         }
-        System.out.println("🔴 UsuariosDAO: Código de USUARIO inválido o usuario no encontrado para: " + correoElectronico);
+        System.out.println("UsuariosDAO: Código de USUARIO inválido o usuario no encontrado para: " + correoElectronico);
         return false; // Código inválido o usuario no encontrado
     }
 
@@ -583,50 +583,50 @@ public class UsuariosDAO {
     @Transactional
     public boolean cambiarAAlumno(int idUsuario, Alumnos alumnoData, String password) {
         try {
-            System.out.println("🟡 UsuariosDAO: Iniciando cambio a alumno para usuario ID: " + idUsuario);
+            System.out.println("UsuariosDAO: Iniciando cambio a alumno para usuario ID: " + idUsuario);
             
             // Buscar usuario con lock para evitar concurrencia
             Optional<Usuarios> usuarioOpt = usuariosRepository.findById(idUsuario);
             
             if (!usuarioOpt.isPresent()) {
-                System.out.println("🔴 UsuariosDAO: Usuario no encontrado con ID: " + idUsuario);
+                System.out.println("UsuariosDAO: Usuario no encontrado con ID: " + idUsuario);
                 return false;
             }
 
             Usuarios usuario = usuarioOpt.get();
-            System.out.println("🟡 UsuariosDAO: Usuario encontrado: " + usuario.getMail() + ", tipo: " + usuario.getTipo());
+            System.out.println("UsuariosDAO: Usuario encontrado: " + usuario.getMail() + ", tipo: " + usuario.getTipo());
 
             // Verificar si ya es alumno verificando tanto la propiedad como la existencia en la tabla
             if (usuario.getAlumno() != null) {
-                System.out.println("🔴 UsuariosDAO: El usuario ya tiene un alumno asociado");
+                System.out.println("UsuariosDAO: El usuario ya tiene un alumno asociado");
                 return false;
             }
             
             if (alumnosRepository.existsById(idUsuario)) {
-                System.out.println("🔴 UsuariosDAO: Ya existe un registro de alumno con ID: " + idUsuario);
+                System.out.println("UsuariosDAO: Ya existe un registro de alumno con ID: " + idUsuario);
                 return false;
             }
 
             // Verificar que todos los datos requeridos estén presentes
             if (alumnoData.getTramite() == null || alumnoData.getTramite().trim().isEmpty()) {
-                System.out.println("🔴 UsuariosDAO: Número de trámite es requerido");
+                System.out.println("UsuariosDAO: Número de trámite es requerido");
                 return false;
             }
 
             // Verificar que la contraseña esté presente para alumnos
             if (password == null || password.trim().isEmpty()) {
-                System.out.println("🔴 UsuariosDAO: Contraseña es requerida para alumnos");
+                System.out.println("UsuariosDAO: Contraseña es requerida para alumnos");
                 return false;
             }
 
             // Primero actualizar el tipo de usuario y la contraseña
-            System.out.println("🟡 UsuariosDAO: Actualizando tipo de usuario a 'alumno' y estableciendo contraseña...");
+            System.out.println("UsuariosDAO: Actualizando tipo de usuario a 'alumno' y estableciendo contraseña...");
             usuario.setTipo("alumno");
             usuario.setPassword(password); // Establecer la contraseña para el alumno
             usuario = usuariosRepository.save(usuario);
             
             // Luego crear el registro de alumno
-            System.out.println("🟡 UsuariosDAO: Creando registro de alumno...");
+            System.out.println("UsuariosDAO: Creando registro de alumno...");
             Alumnos nuevoAlumno = new Alumnos();
             // NO establecer idAlumno manualmente, dejar que @MapsId lo maneje
             nuevoAlumno.setDniFrente(alumnoData.getDniFrente());
@@ -637,24 +637,24 @@ public class UsuariosDAO {
             // Establecer la relación con el usuario DESPUÉS de que el usuario esté guardado
             nuevoAlumno.setUsuario(usuario);
 
-            System.out.println("🟡 UsuariosDAO: Datos del alumno: " + nuevoAlumno);
-            System.out.println("🟡 UsuariosDAO: Guardando alumno...");
+            System.out.println("UsuariosDAO: Datos del alumno: " + nuevoAlumno);
+            System.out.println("UsuariosDAO: Guardando alumno...");
             
             Alumnos alumnoGuardado = alumnosRepository.save(nuevoAlumno);
-            System.out.println("🟢 UsuariosDAO: Alumno guardado con ID: " + alumnoGuardado.getIdAlumno());
+            System.out.println("UsuariosDAO: Alumno guardado con ID: " + alumnoGuardado.getIdAlumno());
 
             // Actualizar la referencia en el usuario
             usuario.setAlumno(alumnoGuardado);
             usuariosRepository.save(usuario);
 
-            System.out.println("🟢 UsuariosDAO: Usuario convertido a alumno exitosamente");
+            System.out.println("UsuariosDAO: Usuario convertido a alumno exitosamente");
             return true;
             
         } catch (Exception e) {
-            System.out.println("🔴 UsuariosDAO: Error cambiando usuario a alumno: " + e.getMessage());
-            System.out.println("🔴 UsuariosDAO: Tipo de error: " + e.getClass().getSimpleName());
+            System.out.println("UsuariosDAO: Error cambiando usuario a alumno: " + e.getMessage());
+            System.out.println("UsuariosDAO: Tipo de error: " + e.getClass().getSimpleName());
             if (e.getCause() != null) {
-                System.out.println("🔴 UsuariosDAO: Causa: " + e.getCause().getMessage());
+                System.out.println("UsuariosDAO: Causa: " + e.getCause().getMessage());
             }
             e.printStackTrace();
             // La transacción se revierte automáticamente
@@ -686,12 +686,12 @@ public class UsuariosDAO {
                 mensaje.setTo(mail);
                 mensaje.setSubject("Código de recuperación de contraseña - ChefNet");
                 mensaje.setText(
-                    "¡Hola! 👨‍🍳\n\n" +
+                    "¡Hola!\n\n" +
                     "Recibimos una solicitud para restablecer tu contraseña en ChefNet.\n\n" +
                     "Tu código de recuperación es:\n\n" +
-                    "🔐 " + codigo + "\n\n" +
-                    "⏰ Este código es válido por 30 minutos únicamente.\n" +
-                    "🔒 Por tu seguridad, no compartas este código con nadie.\n\n" +
+                    codigo + "\n\n" +
+                    "Este código es válido por 30 minutos únicamente.\n" +
+                    "Por tu seguridad, no compartas este código con nadie.\n\n" +
                     "Si no solicitaste este cambio, ignora este mensaje y tu contraseña permanecerá sin cambios.\n\n" +
                     "---\n" +
                     "El equipo de ChefNet"
@@ -766,7 +766,7 @@ public class UsuariosDAO {
                 mensaje.setTo(mail);
                 mensaje.setSubject("Contraseña cambiada exitosamente - ChefNet");
                 mensaje.setText(
-                    "¡Hola! 👨‍🍳\n\n" +
+                    "¡Hola!\n\n" +
                     "Tu contraseña ha sido cambiada exitosamente en ChefNet.\n\n" +
                     "Si no realizaste este cambio, por favor contacta inmediatamente con nuestro soporte.\n\n" +
                     "¡Gracias por usar ChefNet!\n\n" +

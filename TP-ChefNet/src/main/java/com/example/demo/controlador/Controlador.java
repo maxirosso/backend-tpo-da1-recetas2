@@ -173,12 +173,12 @@ public class Controlador {
     // Endpoint de prueba para verificar email
     @PostMapping("/test-email")
     public ResponseEntity<String> testEmail(@RequestParam String mail) {
-        System.out.println("🧪 Probando envío de email a: " + mail);
+        System.out.println("Probando envío de email a: " + mail);
         try {
             usuariosDAO.testEmailSend(mail);
             return new ResponseEntity<>("Email de prueba enviado a " + mail, HttpStatus.OK);
         } catch (Exception e) {
-            System.out.println("🔴 Error en test de email: " + e.getMessage());
+            System.out.println("Error en test de email: " + e.getMessage());
             return new ResponseEntity<>("Error enviando email de prueba: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -188,7 +188,7 @@ public class Controlador {
 	public ResponseEntity<?> login(@RequestParam String mail, @RequestParam String password) {
 	    Usuarios user = usuariosRepository.findByMailAndPassword(mail, password);
 	    if (user != null) {
-	        // Generate JWT token
+	        // Genera JWT token
 	        String token = jwtUtil.generateToken(
 	            user.getMail(), 
 	            user.getIdUsuario(), 
@@ -196,7 +196,7 @@ public class Controlador {
 	            user.getRol() != null ? user.getRol() : "user"
 	        );
 	        
-	        // Create response with user data and token
+	        
 	        Map<String, Object> response = new HashMap<>();
 	        response.put("user", user);
 	        response.put("token", token);
@@ -219,7 +219,7 @@ public class Controlador {
 	        System.out.println("ID: " + r.getIdReceta() + ", Nombre: " + r.getNombreReceta() + ", Autorizada: " + r.isAutorizada());
 	    }
 	    
-	    // Convert to DTOs to include rating calculations
+	    
 	    List<Map<String, Object>> recetasDTO = recetas.stream()
 	        .map(receta -> {
 	            Map<String, Object> dto = new HashMap<>();
@@ -332,7 +332,7 @@ public class Controlador {
             
             List<Recetas> recetas = usuariosDAO.obtenerRecetas(usuario);
             
-            // Convert to DTOs to avoid circular references and include all user recipes (including pending)
+            
             List<Map<String, Object>> recetasDTO = recetas.stream()
                 .map(receta -> {
                     Map<String, Object> dto = new HashMap<>();
@@ -466,12 +466,12 @@ public class Controlador {
     //Registro de Visitantes (sin código de verificación)
     @PostMapping("/registrarVisitante")
     public ResponseEntity<String> registrarVisitante(@RequestParam String mail, @RequestParam String alias) {
-        System.out.println("🟢 Iniciando registro de visitante - Email: " + mail + ", Alias: " + alias);
+        System.out.println("Iniciando registro de visitante - Email: " + mail + ", Alias: " + alias);
         
         // Verificar primero qué campo está duplicado para dar mensaje específico
         Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(mail);
         if (usuarioExistentePorCorreo.isPresent()) {
-            System.out.println("🔴 Email ya registrado: " + mail);
+            System.out.println("Email ya registrado: " + mail);
             return new ResponseEntity<>("El email ya está registrado. Por favor elija otro.", HttpStatus.BAD_REQUEST);
         }
 
@@ -479,25 +479,25 @@ public class Controlador {
         boolean aliasExiste = usuariosRepository.findAll().stream()
             .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
         if (aliasExiste) {
-            System.out.println("🔴 Alias ya registrado: " + alias);
+            System.out.println("Alias ya registrado: " + alias);
             return new ResponseEntity<>("El alias ya está registrado. Por favor elija otro.", HttpStatus.BAD_REQUEST);
         }
 
         // Si ambos están disponibles, proceder con el registro
-        System.out.println("🟡 Validaciones pasadas, registrando visitante...");
+        System.out.println("Validaciones pasadas, registrando visitante...");
         boolean registrado = usuariosDAO.registrarVisitante(mail, alias);
         if (registrado) {
-            System.out.println("🟢 Visitante registrado exitosamente - Email: " + mail + ", Alias: " + alias);
+            System.out.println("Visitante registrado exitosamente - Email: " + mail + ", Alias: " + alias);
             return new ResponseEntity<>("Te registraste correctamente como visitante. Se enviará un email de confirmación si hay conectividad.", HttpStatus.OK);
         }
-        System.out.println("🔴 Error interno en el registro del visitante");
+        System.out.println("Error interno en el registro del visitante");
         return new ResponseEntity<>("Error interno en el registro. Intente nuevamente.", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     //Registro de Visitantes con Verificación (Etapa 1: envío de código)
     @PostMapping("/registrarVisitanteEtapa1")
     public ResponseEntity<Map<String, Object>> registrarVisitanteEtapa1(@RequestParam String mail, @RequestParam String alias) {
-        System.out.println("🟢 Iniciando registro de visitante con verificación - Email: " + mail + ", Alias: " + alias);
+        System.out.println("Iniciando registro de visitante con verificación - Email: " + mail + ", Alias: " + alias);
         
         Map<String, Object> response = new HashMap<>();
         
@@ -505,7 +505,7 @@ public class Controlador {
         Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(mail);
         if (usuarioExistentePorCorreo.isPresent()) {
             Usuarios usuarioExistente = usuarioExistentePorCorreo.get();
-            System.out.println("🔴 Email ya registrado: " + mail + ", Estado: " + usuarioExistente.getHabilitado());
+            System.out.println("Email ya registrado: " + mail + ", Estado: " + usuarioExistente.getHabilitado());
             
             // Verificar si el registro previo se completó o quedó pendiente
             if ("Si".equals(usuarioExistente.getHabilitado())) {
@@ -525,7 +525,7 @@ public class Controlador {
         boolean aliasExiste = usuariosRepository.findAll().stream()
             .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
         if (aliasExiste) {
-            System.out.println("🔴 Alias ya registrado: " + alias + ", generando sugerencias...");
+            System.out.println("Alias ya registrado: " + alias + ", generando sugerencias...");
             
             // Generar sugerencias automáticamente
             List<String> sugerencias = generarSugerenciasAliasInterno(alias);
@@ -593,7 +593,7 @@ public class Controlador {
                 }
             }
         } catch (Exception e) {
-            System.out.println("🔴 Error generando sugerencias internas: " + e.getMessage());
+            System.out.println("Error generando sugerencias internas: " + e.getMessage());
         }
         
         return sugerencias;
@@ -602,7 +602,7 @@ public class Controlador {
     //Verificar código de visitante
     @PostMapping("/verificarCodigoVisitante")
     public ResponseEntity<Map<String, Object>> verificarCodigoVisitante(@RequestParam String mail, @RequestParam String codigo) {
-        System.out.println("🟢 Verificando código de visitante - Email: " + mail + ", Código: " + codigo);
+        System.out.println("Verificando código de visitante - Email: " + mail + ", Código: " + codigo);
         Usuarios visitante = usuariosDAO.verificarCodigoVisitante(mail, codigo);
         
         Map<String, Object> response = new HashMap<>();
@@ -628,7 +628,7 @@ public class Controlador {
     //Reenviar código de verificación para visitante
     @PostMapping("/reenviarCodigoVisitante") 
     public ResponseEntity<String> reenviarCodigoVisitante(@RequestParam String mail) {
-        System.out.println("🟢 Reenviando código de visitante - Email: " + mail);
+        System.out.println("Reenviando código de visitante - Email: " + mail);
         boolean enviado = usuariosDAO.enviarCodigoVerificacionVisitante(mail);
         if (enviado) {
             return new ResponseEntity<>("Se ha reenviado el código de verificación a tu correo.", HttpStatus.OK);
@@ -639,7 +639,7 @@ public class Controlador {
     //Generar sugerencias de alias disponibles
     @GetMapping("/sugerenciasAlias")
     public ResponseEntity<Map<String, Object>> generarSugerenciasAlias(@RequestParam String baseAlias) {
-        System.out.println("🟢 Generando sugerencias para alias: " + baseAlias);
+        System.out.println("Generando sugerencias para alias: " + baseAlias);
         
         Map<String, Object> response = new HashMap<>();
         List<String> sugerencias = new ArrayList<>();
@@ -690,7 +690,7 @@ public class Controlador {
             return new ResponseEntity<>(response, HttpStatus.OK);
             
         } catch (Exception e) {
-            System.out.println("🔴 Error generando sugerencias: " + e.getMessage());
+            System.out.println("Error generando sugerencias: " + e.getMessage());
             response.put("sugerencias", new ArrayList<>());
             response.put("success", false);
             response.put("error", "Error generando sugerencias");
@@ -701,7 +701,7 @@ public class Controlador {
     //Registro de Usuarios (Etapa 1: envío de código)
     @PostMapping("/registrarUsuarioEtapa1")
     public ResponseEntity<Map<String, Object>> registrarUsuarioEtapa1(@RequestParam String mail, @RequestParam String alias) {
-        System.out.println("🟢 Iniciando registro de USUARIO con verificación - Email: " + mail + ", Alias: " + alias);
+        System.out.println("Iniciando registro de USUARIO con verificación - Email: " + mail + ", Alias: " + alias);
         
         Map<String, Object> response = new HashMap<>();
         
@@ -709,7 +709,7 @@ public class Controlador {
         Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(mail);
         if (usuarioExistentePorCorreo.isPresent()) {
             Usuarios usuarioExistente = usuarioExistentePorCorreo.get();
-            System.out.println("🔴 Email ya registrado: " + mail + ", Estado: " + usuarioExistente.getHabilitado());
+            System.out.println("Email ya registrado: " + mail + ", Estado: " + usuarioExistente.getHabilitado());
             
             // Verificar si el registro previo se completó o quedó pendiente
             if ("Si".equals(usuarioExistente.getHabilitado())) {
@@ -729,7 +729,7 @@ public class Controlador {
         boolean aliasExiste = usuariosRepository.findAll().stream()
             .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
         if (aliasExiste) {
-            System.out.println("🔴 Alias ya registrado: " + alias + ", generando sugerencias...");
+            System.out.println("Alias ya registrado: " + alias + ", generando sugerencias...");
             
             // Generar sugerencias automáticamente
             List<String> sugerencias = generarSugerenciasAliasInterno(alias);
@@ -825,12 +825,12 @@ public class Controlador {
             @RequestParam(required = false) MultipartFile dniFrente,
             @RequestParam(required = false) MultipartFile dniFondo) {
         try {
-            System.out.println("🟢 Recibiendo solicitud de upgrade para usuario: " + idUsuario);
-            System.out.println("🟡 Tramite: " + tramite);
-            System.out.println("🟡 Número tarjeta: " + nroTarjeta);
-            System.out.println("🟡 Password: " + (password != null ? "***" : "null"));
-            System.out.println("🟡 DNI frente: " + (dniFrente != null ? dniFrente.getOriginalFilename() : "null"));
-            System.out.println("🟡 DNI fondo: " + (dniFondo != null ? dniFondo.getOriginalFilename() : "null"));
+            System.out.println("Recibiendo solicitud de upgrade para usuario: " + idUsuario);
+            System.out.println("Tramite: " + tramite);
+            System.out.println("Número tarjeta: " + nroTarjeta);
+            System.out.println("Password: " + (password != null ? "***" : "null"));
+            System.out.println("DNI frente: " + (dniFrente != null ? dniFrente.getOriginalFilename() : "null"));
+            System.out.println("DNI fondo: " + (dniFondo != null ? dniFondo.getOriginalFilename() : "null"));
             
             // Crear objeto Alumnos
             Alumnos alumnos = new Alumnos();
@@ -850,7 +850,7 @@ public class Controlador {
                 alumnos.setDniFondo("imagen_dni_fondo_" + System.currentTimeMillis() + "_" + dniFondo.getOriginalFilename());
             }
             
-            System.out.println("🟡 Objeto Alumnos creado: " + alumnos);
+            System.out.println("Objeto Alumnos creado: " + alumnos);
             
             // Intentar convertir el idUsuario a entero
             try {
@@ -879,7 +879,7 @@ public class Controlador {
                 }
             }
         } catch (Exception e) {
-            System.out.println("🔴 Error procesando upgrade: " + e.getMessage());
+            System.out.println("Error procesando upgrade: " + e.getMessage());
             e.printStackTrace();
             return new ResponseEntity<>("Error interno del servidor: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -1001,7 +1001,7 @@ public class Controlador {
 	    return ResponseEntity.ok(recetas);
 	}
 	
-	// Debug endpoint to list all recipe names
+	// Endpoint de depuración para listar todos los nombres de recetas
 	@GetMapping("/debug/listRecipeNames")
 	public ResponseEntity<List<String>> listAllRecipeNames() {
 	    List<Recetas> allRecetas = recetasRepository.findAll();
@@ -1012,16 +1012,16 @@ public class Controlador {
 	    return ResponseEntity.ok(names);
 	}
 	
-	// Debug endpoint to test search directly
+	// Endpoint de depuración para probar búsqueda directamente
 	@GetMapping("/debug/testSearch")
 	public ResponseEntity<Map<String, Object>> testSearch(@RequestParam String searchTerm) {
 	    Map<String, Object> result = new HashMap<>();
 	    
-	    // Test exact match
+	    // Probar coincidencia exacta
 	    List<Recetas> exactMatch = recetasRepository.findByNombreReceta(searchTerm);
 	    result.put("exactMatch", exactMatch.size());
 	    
-	    // Test partial match
+	    // Probar coincidencia parcial
 	    List<Recetas> partialMatch = recetasRepository.findByNombreRecetaContainingIgnoreCase(searchTerm);
 	    result.put("partialMatch", partialMatch.size());
 	    
@@ -1062,7 +1062,7 @@ public class Controlador {
 	
 	//------CONSULTA DE RECETAS----
 	
-	//Nombre (supports partial search as per task requirements)
+	//Nombre 
 	@GetMapping("/getNombrereceta")
 	public ResponseEntity<List<Map<String, Object>>> consultarRecetaPorNombre(@RequestParam String nombrePlato, @RequestParam(required = false) String orden) {
 	    System.out.println("Search request for recipe name: '" + nombrePlato + "' with order: '" + orden + "'");
@@ -1085,7 +1085,7 @@ public class Controlador {
 	        return ResponseEntity.notFound().build();
 	    }
 	    
-	    // Convert to DTOs to avoid circular references
+	    
 	    List<Map<String, Object>> recetasDTO = recetas.stream()
 	        .map(receta -> {
 	            Map<String, Object> dto = new HashMap<>();
@@ -1135,7 +1135,7 @@ public class Controlador {
 	        return ResponseEntity.notFound().build();
 	    }
 
-	    // Convert to DTOs to avoid circular references
+	    
 	    List<Map<String, Object>> recetasDTO = recetas.stream()
 	        .map(receta -> {
 	            Map<String, Object> dto = new HashMap<>();
@@ -1187,7 +1187,7 @@ public class Controlador {
 	        return ResponseEntity.notFound().build();
 	    }
 	    
-	    // Convert to DTOs to avoid circular references
+	   
 	    List<Map<String, Object>> recetasDTO = recetas.stream()
 	        .map(receta -> {
 	            Map<String, Object> dto = new HashMap<>();
@@ -1239,7 +1239,7 @@ public class Controlador {
 	        return ResponseEntity.notFound().build();
 	    }
 	    
-	    // Convert to DTOs to avoid circular references
+	   
 	    List<Map<String, Object>> recetasDTO = recetas.stream()
 	        .map(receta -> {
 	            Map<String, Object> dto = new HashMap<>();
@@ -1276,7 +1276,7 @@ public class Controlador {
 	    return ResponseEntity.ok(recetasDTO);
 	}
 
-	//Usuario Particular (supports partial user name search as per task requirements)
+	//Usuario Particular 
 	@GetMapping("/getUsuarioReceta")
 	public ResponseEntity<List<Map<String, Object>>> consultarRecetaPorUsuario(@RequestParam String usuario, @RequestParam(required = false) String orden) {
 	    List<Recetas> recetas;
@@ -1291,7 +1291,7 @@ public class Controlador {
 	        return ResponseEntity.notFound().build();
 	    }
 	    
-	    // Convert to DTOs to avoid circular references
+	  
 	    List<Map<String, Object>> recetasDTO = recetas.stream()
 	        .map(receta -> {
 	            Map<String, Object> dto = new HashMap<>();
@@ -1432,8 +1432,7 @@ public class Controlador {
 
 	    Recetas receta = recetaOpt.get();
 	    
-	    // Obtener TODAS las valoraciones (autorizadas y no autorizadas) 
-	    // Esto permite que los usuarios vean sus propias valoraciones
+	   
 	    List<Calificaciones> todasLasValoraciones = calificacionesRepository.findByIdReceta(receta);
 	    
 	    if (todasLasValoraciones.isEmpty()) {
@@ -1524,14 +1523,10 @@ public class Controlador {
     // Método mejorado que guarda los archivos asociados a la receta
     public void guardarArchivosDeRecetaMejorado(MultipartFile[] archivos, Recetas receta) {
         if (archivos != null && archivos.length > 0) {
-            // Usar el DAO existente para guardar archivos
-            // Los archivos se guardarán en la tabla multimedia sin paso específico
-            // para foto principal y fotos adicionales
+            
             recetasDAO.guardarArchivos(archivos, receta);
             
-            // Si necesitamos asociar imágenes específicas a pasos, 
-            // necesitaríamos información adicional del frontend sobre qué imagen corresponde a qué paso
-            // Por ahora, las guardamos como multimedia general de la receta
+            
         }
     }
 
@@ -1830,7 +1825,7 @@ public class Controlador {
             }
             
             if (usuario == null) {
-                // Fallback a la sesión si no hay usuario autenticado
+                
                 List<Recetas> listaRecetasSeleccionadas = getListaRecetasSeleccionadas(request);
                 if (!listaRecetasSeleccionadas.contains(receta)) {
                     listaRecetasSeleccionadas.add(receta);
@@ -1937,7 +1932,6 @@ public class Controlador {
             }
             
             if (usuario == null) {
-                // Fallback a la sesión si no hay usuario autenticado
                 List<Recetas> listaRecetasSeleccionadas = getListaRecetasSeleccionadas(request);
                 if (listaRecetasSeleccionadas.remove(receta)) {
                     return new ResponseEntity<>("Receta eliminada de tu lista temporal", HttpStatus.OK);
@@ -1945,7 +1939,7 @@ public class Controlador {
                     return new ResponseEntity<>("Receta no encontrada en tu lista", HttpStatus.NOT_FOUND);
                 }
             }
-            //hola 
+            
             // Usar la nueva tabla recetas_a_intentar
             boolean exists = recetasAIntentarRepository.existsByIdRecetaAndIdUsuario(idReceta, usuario.getIdUsuario());
             if (exists) {
@@ -2008,7 +2002,6 @@ public class Controlador {
         }
     }
     
-    // Helper method to create recipe DTO
     private Map<String, Object> createRecipeDTO(Recetas receta, Boolean completada, java.util.Date fechaCompletada, java.util.Date fechaAgregada) {
         Map<String, Object> dto = new HashMap<>();
         dto.put("idReceta", receta.getIdReceta());
@@ -2209,9 +2202,9 @@ public class Controlador {
                 dto.put("title", curso.getDescripcion());
                 dto.put("descripcion", curso.getDescripcion());
                 
-                // Information available to all users
+                // Información disponible para todos los usuarios
                 if ("alumno".equalsIgnoreCase(usuario.getTipo())) {
-                    // Full information for students
+                    // Información completa para estudiantes
                     dto.put("contenidos", curso.getContenidos());
                     dto.put("requerimientos", curso.getRequerimientos());
                     dto.put("duracion", curso.getDuracion());
@@ -2221,7 +2214,7 @@ public class Controlador {
                     dto.put("fechaFin", cronograma.getFechaFin());
                     dto.put("vacantesDisponibles", cronograma.getVacantesDisponibles());
                     
-                    // Sede information
+                    // Información de la sede
                     if (sede != null) {
                         Map<String, Object> sedeDto = new HashMap<>();
                         sedeDto.put("id", sede.getIdSede());
@@ -2237,7 +2230,7 @@ public class Controlador {
                         dto.put("sede", sedeDto);
                     }
                     
-                    // Calculate final price with discounts
+                    // Calcular precio final con descuentos
                     BigDecimal precioFinal = curso.getPrecio();
                     if (sede != null && sede.getBonificacionCursos() > 0) {
                         if ("descuento".equalsIgnoreCase(sede.getTipoBonificacion())) {
@@ -2246,7 +2239,7 @@ public class Controlador {
                     }
                     dto.put("precioFinal", precioFinal);
                 } else {
-                    // Limited information for non-students
+                    // Información limitada para no estudiantes
                     dto.put("contenidos", "Información completa disponible para estudiantes registrados");
                     dto.put("requerimientos", "Registrate como estudiante para ver los requisitos");
                     dto.put("duracion", "-");
@@ -2302,10 +2295,10 @@ public class Controlador {
                 System.out.println("Alumno creado automáticamente para usuario ID: " + idAlumno);
             }
 
-            // ✅ USAR EL DAO QUE YA MANEJA LA CUENTA CORRIENTE
+            
             cursosDAO.inscribirAlumnoACurso(idAlumno, idCronograma);
             
-            System.out.println("✅ Inscripción exitosa - Cuenta corriente actualizada automáticamente");
+            System.out.println("Inscripción exitosa - Cuenta corriente actualizada automáticamente");
             return ResponseEntity.ok("Inscripción realizada con éxito. Se ha descontado el monto del curso de tu cuenta corriente.");
         } catch (Exception e) {
             e.printStackTrace();
@@ -2422,7 +2415,7 @@ public class Controlador {
         Optional<Inscripcion> inscripcion = inscripcionDAO.findById(idInscripcion);
 
         if (inscripcion.isEmpty()) {
-            System.out.println("❌ Inscripción no encontrada con ID: " + idInscripcion);
+            System.out.println("Inscripción no encontrada con ID: " + idInscripcion);
             return ResponseEntity.badRequest().body("Inscripción no encontrada.");
         }
         Inscripcion inscripciones = inscripcion.get();
@@ -2458,14 +2451,14 @@ public class Controlador {
             System.out.println("⚠️ Cancelación después del inicio - Sin reintegro");
         }
 
-        // ✅ ACTUALIZAR CUENTA CORRIENTE DEL ALUMNO CON EL REINTEGRO
+        
         Alumnos alumno = inscripciones.getAlumno();
         if (reintegro.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal cuentaAnterior = alumno.getCuentaCorriente();
             alumno.setCuentaCorriente(cuentaAnterior.add(reintegro));
             alumnosRepository.save(alumno);
             
-            System.out.println("💰 Cuenta corriente actualizada:");
+            System.out.println("Cuenta corriente actualizada:");
             System.out.println("   - Saldo anterior: $" + cuentaAnterior);
             System.out.println("   - Reintegro: $" + reintegro);
             System.out.println("   - Nuevo saldo: $" + alumno.getCuentaCorriente());
@@ -2474,11 +2467,11 @@ public class Controlador {
         inscripciones.setEstadoInscripcion("cancelado");
         inscripcionDAO.save(inscripciones);
         
-        System.out.println("✅ Inscripción cancelada exitosamente");
-        System.out.println("✅ Estado actualizado a: " + inscripciones.getEstadoInscripcion());
-        System.out.println("✅ Días de diferencia: " + diasDeDiferencia);
-        System.out.println("✅ Reintegro calculado: " + reintegro);
-        System.out.println("✅ Mensaje: " + mensajeReintegro);
+        System.out.println("Inscripción cancelada exitosamente");
+        System.out.println("Estado actualizado a: " + inscripciones.getEstadoInscripcion());
+        System.out.println("Días de diferencia: " + diasDeDiferencia);
+        System.out.println("Reintegro calculado: " + reintegro);
+        System.out.println("Mensaje: " + mensajeReintegro);
 
         String mensajeFinal = "Baja procesada correctamente. " + mensajeReintegro + ". Monto: $" + reintegro;
         if (reintegro.compareTo(BigDecimal.ZERO) > 0) {
@@ -2489,7 +2482,7 @@ public class Controlador {
     }
 
 
-    // Username availability check
+    // Verificación de disponibilidad de nombre de usuario
     @GetMapping("/auth/check-username")
     public ResponseEntity<Map<String, Object>> checkUsernameAvailability(@RequestParam String username) {
         Map<String, Object> result = new HashMap<>();
@@ -2522,7 +2515,7 @@ public class Controlador {
         return ResponseEntity.ok(result);
     }
 
-    // Email verification endpoint
+    // Endpoint de verificación de email
     @PostMapping("/auth/verify-email")
     public ResponseEntity<Map<String, Object>> verifyEmail(@RequestBody Map<String, String> payload) {
         String email = payload.get("email");
@@ -2540,7 +2533,7 @@ public class Controlador {
         return ResponseEntity.ok(result);
     }
 
-    // Complete profile endpoint
+    // Endpoint para completar perfil
     @PutMapping("/usuarios/perfil")
     public ResponseEntity<Map<String, Object>> completeProfile(@RequestBody Map<String, Object> profileData) {
         String email = (String) profileData.get("email");
@@ -2561,7 +2554,7 @@ public class Controlador {
         return ResponseEntity.ok(result);
     }
 
-    // Endpoint to get user ID by email
+    // Endpoint para obtener ID de usuario por email
     @GetMapping("/getUsuarioByEmail")
     public ResponseEntity<Map<String, Object>> getUsuarioByEmail(@RequestParam String mail) {
         Optional<Usuarios> userOpt = usuariosRepository.findByMail(mail);
@@ -3641,5 +3634,4 @@ public class Controlador {
     }
 }
 
-//hola 
 
