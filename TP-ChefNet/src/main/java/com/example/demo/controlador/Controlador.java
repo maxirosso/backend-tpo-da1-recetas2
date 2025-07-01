@@ -1049,6 +1049,17 @@ public class Controlador {
 	    return ResponseEntity.ok("Inscripción cancelada.");
 	}
 	
+	//registrar asistencia
+	@PostMapping("/registrarAsistencia")
+	public ResponseEntity<String> registrarAsistencia(@RequestParam int idAlumno, @RequestParam int idCronograma) {
+	    try {
+	        asistenciaCursosDAO.registrarAsistencia(idAlumno, idCronograma);
+	        return ResponseEntity.ok("Asistencia registrada exitosamente.");
+	    } catch (RuntimeException e) {
+	        return ResponseEntity.badRequest().body("Error al registrar asistencia: " + e.getMessage());
+	    }
+	}
+	
 	//------CONSULTA DE RECETAS----
 	
 	//Nombre (supports partial search as per task requirements)

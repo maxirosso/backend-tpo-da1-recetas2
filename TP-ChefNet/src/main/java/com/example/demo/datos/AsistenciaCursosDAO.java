@@ -54,5 +54,34 @@ public class AsistenciaCursosDAO {
         
         asistenciaCursosRepository.delete(asistencia);
     }
+    
+    public void registrarAsistencia(int idAlumno, int idCronograma) {
+        Alumnos alumno = alumnosRepository.findById(idAlumno)
+                .orElseThrow(() -> new RuntimeException("Alumno no encontrado"));
+
+        CronogramaCursos cronograma = cronogramaRepository.findById(idCronograma)
+                .orElseThrow(() -> new RuntimeException("Cronograma no encontrado"));
+
+        // Verificar si ya existe una asistencia para esta fecha
+        AsistenciaCursos asistenciaExistente = asistenciaCursosRepository
+            .findByIdAlumno_IdAlumnoAndIdCronograma_IdCronograma(idAlumno, idCronograma)
+            .orElse(null);
+        
+        if (asistenciaExistente != null && asistenciaExistente.getFecha() != null) {
+            // Si ya hay asistencia registrada para hoy, no hacer nada
+            java.sql.Date hoy = new java.sql.Date(System.currentTimeMillis());
+            if (asistenciaExistente.getFecha().equals(hoy)) {
+                return; // Ya registró asistencia hoy
+            }
+        }
+
+        // Crear nueva asistencia con fecha de hoy
+        AsistenciaCursos nuevaAsistencia = new AsistenciaCursos();
+        nuevaAsistencia.setIdAlumno(alumno);
+        nuevaAsistencia.setIdCronograma(cronograma);
+        nuevaAsistencia.setFecha(new java.sql.Date(System.currentTimeMillis()));
+
+        asistenciaCursosRepository.save(nuevaAsistencia);
+    }
 
 }
