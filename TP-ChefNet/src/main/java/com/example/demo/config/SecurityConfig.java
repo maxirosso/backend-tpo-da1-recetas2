@@ -36,6 +36,7 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/registrarUsuarioEtapa1")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/verificarCodigoUsuario")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/reenviarCodigoUsuario")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/completarRegistroUsuario")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/sugerenciasAlias")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/cambiarAAlumno/**")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test-email")).permitAll()

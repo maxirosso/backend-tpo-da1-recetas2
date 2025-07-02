@@ -251,8 +251,9 @@ public class UsuariosDAO {
             Usuarios nuevoUsuario = new Usuarios();
             nuevoUsuario.setMail(correoElectronico);
             nuevoUsuario.setNickname(alias);
-            nuevoUsuario.setTipo("usuario");
-            nuevoUsuario.setHabilitado("Pendiente"); // Pendiente de verificación por correo
+            nuevoUsuario.setTipo("comun");
+            nuevoUsuario.setRol("user");
+            nuevoUsuario.setHabilitado("No"); // No habilitado hasta verificar código
             
             usuariosRepository.save(nuevoUsuario);
             System.out.println("UsuariosDAO: Usuario (etapa 1) guardado en la base de datos.");
