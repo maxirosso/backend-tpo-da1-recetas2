@@ -64,7 +64,6 @@ public class CursosDAO {
         Inscripcion inscripcion = new Inscripcion();
         inscripcion.setAlumno(alumno);
         inscripcion.setCronograma(cronograma);
-        // ✅ CORREGIDO: Ahora sí seteamos el curso porque la tabla lo requiere
         inscripcion.setCurso(cronograma.getIdCurso());
         inscripcion.setFechaInscripcion(new Date());        
         inscripcion.setEstadoInscripcion("Inscrito");

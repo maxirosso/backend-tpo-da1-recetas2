@@ -54,11 +54,11 @@ public class UsuariosDAO {
     }
     
     public Recetas cargarReceta(Recetas receta) {
-        // Ensure new recipes are not authorized by default (pending approval)
+        
         if (receta.getIdReceta() == null) {
             receta.setAutorizada(false);
             
-            // Check for duplicates (only for new recipes)
+            
             if (receta.getUsuario() != null && receta.getNombreReceta() != null) {
                 Optional<Recetas> existingReceta = recetasRepository.findByNombreRecetaAndUsuario(
                     receta.getNombreReceta().trim(), receta.getUsuario());
@@ -68,15 +68,15 @@ public class UsuariosDAO {
             }
         }
         
-        // Set current date if not provided
+        
         if (receta.getFecha() == null) {
             receta.setFecha(java.time.LocalDate.now());
         }
         
-        // Handle ingredientes relationship
+        
         if (receta.getIngredientes() != null && !receta.getIngredientes().isEmpty()) {
             for (com.example.demo.modelo.Ingredientes ingrediente : receta.getIngredientes()) {
-                // Set the bidirectional relationship
+                
                 ingrediente.setReceta(receta);
             }
         }
@@ -108,15 +108,15 @@ public class UsuariosDAO {
         return recetasRepository.findAll();
     }
     
-    // Función para verificar si un alias/username está disponible
+    
     public boolean isUsernameAvailable(String nickname) {
         try {
-            // Verificar en tabla usuarios usando repository
+            
             Optional<Usuarios> usuario = usuariosRepository.findByNickname(nickname);
-            return !usuario.isPresent(); // Está disponible si NO se encuentra
+            return !usuario.isPresent(); 
         } catch (Exception e) {
             System.err.println("Error verificando disponibilidad de nickname: " + e.getMessage());
-            return true; // Por defecto permitir si hay error
+            return true; 
         }
     }
 
@@ -153,15 +153,15 @@ public class UsuariosDAO {
             nuevoVisitante.setRol("visitante");
 
         // Guardar el nuevo visitante
-            System.out.println("UsuariosDAO: Guardando visitante en base de datos...");
+            System.out.println(" Guardando visitante en base de datos...");
         usuariosRepository.save(nuevoVisitante);
-            System.out.println("UsuariosDAO: Visitante guardado exitosamente en base de datos");
+            System.out.println(" Visitante guardado exitosamente en base de datos");
 
-            // Enviar email de confirmación simple (sin código) - CON TIMEOUT
-            System.out.println("UsuariosDAO: Enviando email de confirmación con timeout...");
+            
+            System.out.println(" Enviando email de confirmación con timeout...");
             boolean emailEnviado = false;
             try {
-                // Crear un thread separado para el envío de email con timeout
+                
                 Thread emailThread = new Thread(() -> {
                     try {
                         enviarEmailConfirmacionVisitante(correoElectronico, alias);
@@ -171,24 +171,24 @@ public class UsuariosDAO {
                 });
                 
                 emailThread.start();
-                emailThread.join(30000); // Timeout de 30 segundos (aumentado de 5000 a 30000)
+                emailThread.join(30000); 
                 
                 if (emailThread.isAlive()) {
-                    System.out.println("UsuariosDAO: Timeout enviando email, pero registro completado");
-                    emailThread.interrupt(); // Intentar interrumpir el thread
+                    System.out.println("Timeout enviando email, pero registro completado");
+                    emailThread.interrupt(); 
                 } else {
-                    System.out.println("UsuariosDAO: Proceso de email completado");
+                    System.out.println("Proceso de email completado");
                     emailEnviado = true;
                 }
             } catch (Exception e) {
-                System.out.println("UsuariosDAO: Error enviando email, pero registro completado: " + e.getMessage());
+                System.out.println("Error enviando email, pero registro completado: " + e.getMessage());
             }
 
-            // Retornar true siempre que el visitante se haya guardado en BD, independientemente del email
+            
             return true; 
             
         } catch (Exception e) {
-            System.out.println("UsuariosDAO: Error guardando visitante: " + e.getMessage());
+            System.out.println("Error guardando visitante: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -196,12 +196,12 @@ public class UsuariosDAO {
     
     // Método de prueba para verificar el envío de emails
     public void testEmailSend(String correoElectronico) {
-        System.out.println("TEST: Iniciando prueba de envío de email a: " + correoElectronico);
+        System.out.println("Iniciando prueba de envío de email a: " + correoElectronico);
         
         try {
             // Verificar conectividad antes de intentar enviar
             if (emailSender == null) {
-                System.out.println("TEST: EmailSender no está configurado");
+                System.out.println("EmailSender no está configurado");
                 throw new RuntimeException("EmailSender no configurado");
             }
             
@@ -216,27 +216,27 @@ public class UsuariosDAO {
                 "Prueba automática del sistema"
             );
             
-            System.out.println("TEST: Enviando email de prueba...");
+            System.out.println("Enviando email de prueba...");
             long startTime = System.currentTimeMillis();
             emailSender.send(mensaje);
             long endTime = System.currentTimeMillis();
             
-            System.out.println("TEST: Email de prueba enviado exitosamente en " + (endTime - startTime) + "ms");
+            System.out.println("Email de prueba enviado exitosamente en " + (endTime - startTime) + "ms");
             
         } catch (org.springframework.mail.MailSendException e) {
-            System.out.println("TEST: Error enviando email (MailSendException): " + e.getMessage());
+            System.out.println("Error enviando email (MailSendException): " + e.getMessage());
             throw new RuntimeException("Error de envío: " + e.getMessage());
         } catch (org.springframework.mail.MailAuthenticationException e) {
-            System.out.println("TEST: Error de autenticación de email: " + e.getMessage());
+            System.out.println("Error de autenticación de email: " + e.getMessage());
             throw new RuntimeException("Error de autenticación: " + e.getMessage());
         } catch (org.springframework.mail.MailException e) {
-            System.out.println("TEST: Error de configuración de email: " + e.getMessage());
+            System.out.println("Error de configuración de email: " + e.getMessage());
             throw new RuntimeException("Error de configuración: " + e.getMessage());
         } catch (Exception e) {
-            System.out.println("TEST: Error general enviando email: " + e.getMessage());
-            System.out.println("TEST: Tipo de error: " + e.getClass().getSimpleName());
+            System.out.println("Error general enviando email: " + e.getMessage());
+            System.out.println("Tipo de error: " + e.getClass().getSimpleName());
             if (e.getCause() != null) {
-                System.out.println("TEST: Causa del error: " + e.getCause().getMessage());
+                System.out.println("Causa del error: " + e.getCause().getMessage());
             }
             e.printStackTrace(); 
             throw new RuntimeException("Error general: " + e.getMessage());
@@ -245,7 +245,7 @@ public class UsuariosDAO {
 
     // USUARIOS: Registro en 2 etapas con código de verificación
     public boolean registrarUsuarioEtapa1(String correoElectronico, String alias) {
-        System.out.println("UsuariosDAO: Iniciando registro de usuario con verificación - Email: " + correoElectronico + ", Alias: " + alias);
+        System.out.println("Iniciando registro de usuario con verificación - Email: " + correoElectronico + ", Alias: " + alias);
 
         try {
             Usuarios nuevoUsuario = new Usuarios();
@@ -253,29 +253,29 @@ public class UsuariosDAO {
             nuevoUsuario.setNickname(alias);
             nuevoUsuario.setTipo("comun");
             nuevoUsuario.setRol("user");
-            nuevoUsuario.setHabilitado("No"); // No habilitado hasta verificar código
+            nuevoUsuario.setHabilitado("No"); 
             
             usuariosRepository.save(nuevoUsuario);
-            System.out.println("UsuariosDAO: Usuario (etapa 1) guardado en la base de datos.");
+            System.out.println("Usuario (etapa 1) guardado en la base de datos.");
 
             // Enviar código de verificación
             return enviarCodigoVerificacionUsuario(correoElectronico);
 
         } catch (Exception e) {
-            System.out.println("UsuariosDAO: Error en la etapa 1 del registro de usuario: " + e.getMessage());
+            System.out.println("Error en la etapa 1 del registro de usuario: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
     
-    // VISITANTES: Registro en 2 etapas con código de verificación
+    
     public boolean registrarVisitanteEtapa1(String correoElectronico, String alias) {
-        System.out.println("UsuariosDAO: Iniciando registro de visitante con verificación - Email: " + correoElectronico + ", Alias: " + alias);
+        System.out.println("Iniciando registro de visitante con verificación - Email: " + correoElectronico + ", Alias: " + alias);
         
         // Verificar si el correo ya está registrado
         Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(correoElectronico);
         if (usuarioExistentePorCorreo.isPresent()) {
-            System.out.println("UsuariosDAO: Email ya registrado: " + correoElectronico);
+            System.out.println("Email ya registrado: " + correoElectronico);
             return false; // El correo ya está registrado
         }
 
@@ -283,7 +283,7 @@ public class UsuariosDAO {
         boolean aliasExiste = usuariosRepository.findAll().stream()
             .anyMatch(usuario -> alias.equalsIgnoreCase(usuario.getNickname()));
         if (aliasExiste) {
-            System.out.println("UsuariosDAO: Alias ya registrado: " + alias);
+            System.out.println("Alias ya registrado: " + alias);
             return false; // El alias ya está registrado
         }
 
@@ -301,15 +301,15 @@ public class UsuariosDAO {
             nuevoVisitante.setRol("visitante");
 
             // Guardar el nuevo visitante en estado pendiente
-            System.out.println("UsuariosDAO: Guardando visitante pendiente en base de datos...");
+            System.out.println("Guardando visitante pendiente en base de datos...");
             usuariosRepository.save(nuevoVisitante);
-            System.out.println("UsuariosDAO: Visitante pendiente guardado exitosamente en base de datos");
+            System.out.println("Visitante pendiente guardado exitosamente en base de datos");
 
             // Enviar código de verificación
             return enviarCodigoVerificacionVisitante(correoElectronico);
             
         } catch (Exception e) {
-            System.out.println("UsuariosDAO: Error guardando visitante pendiente: " + e.getMessage());
+            System.out.println("Error guardando visitante pendiente: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -317,13 +317,13 @@ public class UsuariosDAO {
 
     // Verificar código de verificación para visitante
     public Usuarios verificarCodigoVisitante(String correoElectronico, String codigoIngresado) {
-        System.out.println("UsuariosDAO: Verificando código de visitante - Email: " + correoElectronico + ", Código: " + codigoIngresado);
+        System.out.println("Verificando código de visitante - Email: " + correoElectronico + ", Código: " + codigoIngresado);
         
         try {
             // Buscar el visitante por email
             Optional<Usuarios> visitanteOpt = usuariosRepository.findByMail(correoElectronico);
             if (!visitanteOpt.isPresent()) {
-                System.out.println("UsuariosDAO: Visitante no encontrado: " + correoElectronico);
+                System.out.println("Visitante no encontrado: " + correoElectronico);
                 return null;
             }
 
@@ -331,7 +331,7 @@ public class UsuariosDAO {
             
             // Verificar que sea un visitante y esté pendiente de verificación
             if (!"visitante".equals(visitante.getTipo()) || !"No".equals(visitante.getHabilitado())) {
-                System.out.println("UsuariosDAO: Visitante no está en estado pendiente de verificación");
+                System.out.println("Visitante no está en estado pendiente de verificación");
                 return null;
             }
 
@@ -341,32 +341,32 @@ public class UsuariosDAO {
                 
                 // Código válido - habilitar visitante completamente
                 visitante.setHabilitado("Si");
-                visitante.setCodigoRecuperacion(null); // Limpiar código usado
+                visitante.setCodigoRecuperacion(null);
                 usuariosRepository.save(visitante);
                 
-                System.out.println("UsuariosDAO: Visitante verificado y habilitado exitosamente");
+                System.out.println("Visitante verificado y habilitado exitosamente");
                 return visitante; // Retornar el usuario completo
             } else {
-                System.out.println("UsuariosDAO: Código de verificación incorrecto");
+                System.out.println("Código de verificación incorrecto");
                 return null;
             }
             
         } catch (Exception e) {
-            System.out.println("UsuariosDAO: Error verificando código de visitante: " + e.getMessage());
+            System.out.println("Error verificando código de visitante: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
     }
 
-    // Enviar código de verificación para visitante (reutilizar lógica de usuarios)
+    
     public boolean enviarCodigoVerificacionVisitante(String correoElectronico) {
-        System.out.println("UsuariosDAO: Enviando código de verificación a visitante: " + correoElectronico);
+        System.out.println("Enviando código de verificación a visitante: " + correoElectronico);
         
         try {
             // Buscar el visitante por email
             Optional<Usuarios> visitanteOpt = usuariosRepository.findByMail(correoElectronico);
             if (!visitanteOpt.isPresent()) {
-                System.out.println("UsuariosDAO: Visitante no encontrado: " + correoElectronico);
+                System.out.println("Visitante no encontrado: " + correoElectronico);
                 return false;
             }
 
@@ -395,13 +395,13 @@ public class UsuariosDAO {
                 "El equipo de ChefNet"
             );
             
-            System.out.println("UsuariosDAO: Enviando email con código: " + codigo);
+            System.out.println("Enviando email con código: " + codigo);
             emailSender.send(mensaje);
-            System.out.println("UsuariosDAO: Código de verificación enviado exitosamente");
+            System.out.println("Código de verificación enviado exitosamente");
             return true;
             
         } catch (Exception e) {
-            System.out.println("UsuariosDAO: Error enviando código de verificación: " + e.getMessage());
+            System.out.println("Error enviando código de verificación: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -461,7 +461,7 @@ public class UsuariosDAO {
                 System.out.println("Causa del error: " + e.getCause().getMessage());
                 System.out.println("Tipo de causa: " + e.getCause().getClass().getSimpleName());
             }
-            e.printStackTrace(); // Stack trace completo para debugging
+            e.printStackTrace(); 
         }
     }
 
@@ -480,7 +480,7 @@ public class UsuariosDAO {
         
         // Si el usuario ya está habilitado, no enviar código
         if ("Si".equals(usuario.getHabilitado())) {
-            System.out.println("UsuariosDAO: El usuario ya está habilitado, no se requiere código de verificación.");
+            System.out.println("El usuario ya está habilitado, no se requiere código de verificación.");
             return false;
         }
         
@@ -491,7 +491,7 @@ public class UsuariosDAO {
         usuario.setCodigoVerificacionTimestamp(LocalDateTime.now());
         usuariosRepository.save(usuario);
         
-        System.out.println("UsuariosDAO: Código de verificación de USUARIO generado (" + codigo + ") y guardado para: " + correoElectronico);
+        System.out.println("Código de verificación de USUARIO generado (" + codigo + ") y guardado para: " + correoElectronico);
         
         try {
             // Crear el mensaje con MimeMessage para formato HTML
@@ -509,19 +509,19 @@ public class UsuariosDAO {
                            + "<hr>"
                            + "<p><em>El equipo de ChefNet</em></p>";
             
-            helper.setText(htmlMsg, true); // true indica que es HTML
+            helper.setText(htmlMsg, true); 
             helper.setTo(correoElectronico);
             helper.setSubject("Tu Código de Verificación de ChefNet");
             helper.setFrom("rossomaxi685@gmail.com");
 
             emailSender.send(mimeMessage);
-            System.out.println("UsuariosDAO: Email de verificación para USUARIO enviado a: " + correoElectronico);
+            System.out.println("Email de verificación para USUARIO enviado a: " + correoElectronico);
             return true;
         } catch (MessagingException e) {
-            System.out.println("UsuariosDAO: Error creando email HTML para USUARIO: " + e.getMessage());
+            System.out.println("Error creando email HTML para USUARIO: " + e.getMessage());
             return false;
         } catch (Exception e) {
-            System.out.println("UsuariosDAO: Error general enviando email a USUARIO: " + e.getMessage());
+            System.out.println("Error general enviando email a USUARIO: " + e.getMessage());
             return false;
         }
     }
@@ -531,29 +531,28 @@ public class UsuariosDAO {
         if (usuarioOpt.isPresent()) {
             Usuarios usuario = usuarioOpt.get();
             
-            // Simplificado: solo verificar si el usuario ya está habilitado
+            
             if ("Si".equals(usuario.getHabilitado())) {
-                System.out.println("UsuariosDAO: Usuario ya se encuentra habilitado.");
+                System.out.println("Usuario ya se encuentra habilitado.");
                 return false;
             }
 
-            // 1. Verificar que el código coincida
+            
             if (usuario.getCodigoVerificacion() != null && usuario.getCodigoVerificacion().equals(codigoIngresado)) {
                 
-                // 2. Verificar validez del código (24 horas)
+                
                 if (usuario.getCodigoVerificacionTimestamp() != null) {
                     LocalDateTime ahora = LocalDateTime.now();
                     LocalDateTime enviadoEn = usuario.getCodigoVerificacionTimestamp();
                     long horasTranscurridas = java.time.Duration.between(enviadoEn, ahora).toHours();
                     
                     if (horasTranscurridas <= 24) {
-                        // Código válido y dentro del tiempo límite.
-                        // Se habilita al completar el perfil, así que aquí solo validamos.
+                        
                         System.out.println("UsuariosDAO: Código de USUARIO verificado exitosamente para: " + correoElectronico);
                         return true;
                     } else {
                         System.out.println("UsuariosDAO: Código de USUARIO expirado para: " + correoElectronico);
-                        // Opcional: Limpiar código expirado
+                        
                         usuario.setCodigoVerificacion(null);
                         usuario.setCodigoVerificacionTimestamp(null);
                         usuariosRepository.save(usuario);
@@ -563,7 +562,7 @@ public class UsuariosDAO {
             }
         }
         System.out.println("UsuariosDAO: Código de USUARIO inválido o usuario no encontrado para: " + correoElectronico);
-        return false; // Código inválido o usuario no encontrado
+        return false; 
     }
 
     public boolean completarRegistroUsuario(String correoElectronico, String nombre, String password) {
@@ -571,10 +570,10 @@ public class UsuariosDAO {
         if (usuarioOpt.isPresent()) {
             Usuarios usuario = usuarioOpt.get();
             
-            // Completar datos del usuario
+            
             usuario.setNombre(nombre);
-            usuario.setPassword(password); // En producción debería estar hasheada
-            usuario.setHabilitado("Si"); // Ahora sí habilitado completamente
+            usuario.setPassword(password); 
+            usuario.setHabilitado("Si"); 
             usuariosRepository.save(usuario);
             return true;
         }
@@ -595,11 +594,11 @@ public class UsuariosDAO {
             }
 
             Usuarios usuario = usuarioOpt.get();
-            System.out.println("UsuariosDAO: Usuario encontrado: " + usuario.getMail() + ", tipo: " + usuario.getTipo());
+            System.out.println("Usuario encontrado: " + usuario.getMail() + ", tipo: " + usuario.getTipo());
 
             // Verificar si ya es alumno verificando tanto la propiedad como la existencia en la tabla
             if (usuario.getAlumno() != null) {
-                System.out.println("UsuariosDAO: El usuario ya tiene un alumno asociado");
+                System.out.println("El usuario ya tiene un alumno asociado");
                 return false;
             }
             
@@ -608,57 +607,57 @@ public class UsuariosDAO {
                 return false;
             }
 
-            // Verificar que todos los datos requeridos estén presentes
+            
             if (alumnoData.getTramite() == null || alumnoData.getTramite().trim().isEmpty()) {
                 System.out.println("UsuariosDAO: Número de trámite es requerido");
                 return false;
             }
 
-            // Verificar que la contraseña esté presente para alumnos
+            
             if (password == null || password.trim().isEmpty()) {
                 System.out.println("UsuariosDAO: Contraseña es requerida para alumnos");
                 return false;
             }
 
-            // Primero actualizar el tipo de usuario y la contraseña
+            
             System.out.println("UsuariosDAO: Actualizando tipo de usuario a 'alumno' y estableciendo contraseña...");
             usuario.setTipo("alumno");
-            usuario.setPassword(password); // Establecer la contraseña para el alumno
+            usuario.setPassword(password); 
             usuario = usuariosRepository.save(usuario);
             
-            // Luego crear el registro de alumno
+            
             System.out.println("UsuariosDAO: Creando registro de alumno...");
             Alumnos nuevoAlumno = new Alumnos();
-            // NO establecer idAlumno manualmente, dejar que @MapsId lo maneje
+           
             nuevoAlumno.setDniFrente(alumnoData.getDniFrente());
             nuevoAlumno.setDniFondo(alumnoData.getDniFondo());
             nuevoAlumno.setTramite(alumnoData.getTramite());
             nuevoAlumno.setNroTarjeta(alumnoData.getNroTarjeta());
             nuevoAlumno.setCuentaCorriente(BigDecimal.ZERO);
-            // Establecer la relación con el usuario DESPUÉS de que el usuario esté guardado
+            
             nuevoAlumno.setUsuario(usuario);
 
-            System.out.println("UsuariosDAO: Datos del alumno: " + nuevoAlumno);
-            System.out.println("UsuariosDAO: Guardando alumno...");
+            System.out.println("Datos del alumno: " + nuevoAlumno);
+            System.out.println("Guardando alumno...");
             
             Alumnos alumnoGuardado = alumnosRepository.save(nuevoAlumno);
-            System.out.println("UsuariosDAO: Alumno guardado con ID: " + alumnoGuardado.getIdAlumno());
+            System.out.println("Alumno guardado con ID: " + alumnoGuardado.getIdAlumno());
 
-            // Actualizar la referencia en el usuario
+           
             usuario.setAlumno(alumnoGuardado);
             usuariosRepository.save(usuario);
 
-            System.out.println("UsuariosDAO: Usuario convertido a alumno exitosamente");
+            System.out.println("Usuario convertido a alumno exitosamente");
             return true;
             
         } catch (Exception e) {
-            System.out.println("UsuariosDAO: Error cambiando usuario a alumno: " + e.getMessage());
-            System.out.println("UsuariosDAO: Tipo de error: " + e.getClass().getSimpleName());
+            System.out.println("Error cambiando usuario a alumno: " + e.getMessage());
+            System.out.println("Tipo de error: " + e.getClass().getSimpleName());
             if (e.getCause() != null) {
-                System.out.println("UsuariosDAO: Causa: " + e.getCause().getMessage());
+                System.out.println("Causa: " + e.getCause().getMessage());
             }
             e.printStackTrace();
-            // La transacción se revierte automáticamente
+            
             return false;
         }
     }
@@ -668,9 +667,9 @@ public class UsuariosDAO {
         if (usuario.isPresent()) {
             Usuarios usuarios = usuario.get();
 
-            // Verificar que el usuario tenga registro completo
+         
             if (!"Si".equals(usuarios.getHabilitado())) {
-                return false; // No permitir recuperación para usuarios no habilitados
+                return false; 
             }
 
             // Generar código de 4 dígitos para recuperación
@@ -729,7 +728,7 @@ public class UsuariosDAO {
                         // Código válido y dentro del tiempo límite
                         return true;
                     } else {
-                        // Código expirado - limpiar código
+                        
                         usuario.setCodigoRecuperacion(null);
                         usuario.setVerificationCodeSentAt(null);
                         usuariosRepository.save(usuario);
@@ -738,7 +737,7 @@ public class UsuariosDAO {
                 }
             }
         }
-        return false; // Código inválido o usuario no encontrado
+        return false; 
     }
 
     // Cambiar contraseña con código válido
@@ -753,9 +752,9 @@ public class UsuariosDAO {
             Usuarios usuario = usuarioOpt.get();
             
             // Cambiar la contraseña
-            usuario.setPassword(nuevaPassword); // En producción debería estar hasheada
+            usuario.setPassword(nuevaPassword); 
             
-            // Limpiar código de recuperación usado
+            
             usuario.setCodigoRecuperacion(null);
             usuario.setVerificationCodeSentAt(null);
             
@@ -777,7 +776,7 @@ public class UsuariosDAO {
                 emailSender.send(mensaje);
             } catch (Exception e) {
                 System.out.println("Error enviando confirmación de cambio de contraseña: " + e.getMessage());
-                // No fallar el cambio de contraseña por error de email
+                
             }
             
             return true;
@@ -798,12 +797,12 @@ public class UsuariosDAO {
         try {
             Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             
-            // Check if the principal is a Usuarios object (from JWT authentication)
+            
             if (principal instanceof Usuarios) {
                 return (Usuarios) principal;
             }
             
-            // Fallback for other authentication types
+            
             if (principal instanceof User) {
                 String username = ((User) principal).getUsername();
                 return usuariosRepository.findByMail(username).orElse(null);
@@ -815,7 +814,7 @@ public class UsuariosDAO {
         }
     }
 
-    // Mantener función original para compatibilidad con código existente
+    
     public void enviarCorreoDeConfirmacion(String toEmail) {
         try {
             MimeMessage message = emailSender.createMimeMessage();

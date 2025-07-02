@@ -51,7 +51,7 @@ public class RecetasDAO {
 	}
 	
 	public List<Recetas> buscarPorNombre(String nombre) {
-	    // Support partial name search as per task requirements
+	    
 	    return recetasRepository.findByNombreRecetaContainingIgnoreCase(nombre);
 	}
 
@@ -61,17 +61,17 @@ public class RecetasDAO {
 
     public void guardarArchivos(MultipartFile[] archivos, Recetas receta) {
         if (archivos == null || archivos.length == 0 || receta == null) {
-            return; // Si no hay archivos o receta, no hacer nada
+            return; 
         }
 
-        // Directorio base donde se almacenarán los archivos
+        
         String carpetaReceta = directorioBase + File.separator + "receta_" + receta.getIdReceta();
         File directorio = new File(carpetaReceta);
         if (!directorio.exists()) {
             directorio.mkdirs();
         }
 
-        int fotoPrincipalIndex = 0; // La primera imagen será la foto principal
+        int fotoPrincipalIndex = 0; 
         boolean fotoPrincipalAsignada = false;
 
         for (int i = 0; i < archivos.length; i++) {
@@ -83,33 +83,33 @@ public class RecetasDAO {
                     Path rutaArchivo = (Path) Paths.get(carpetaReceta, nombreArchivoUnico);
                     File archivoDestino = new File(carpetaReceta + File.separator + nombreArchivoUnico);
 
-                    // Escribir el archivo en el disco
+                    
                     try (FileOutputStream fos = new FileOutputStream(archivoDestino)) {
                         fos.write(archivo.getBytes());
                     }
 
-                    // Determinar tipo de contenido basado en el nombre del archivo o posición
+                    
                     String tipoContenido = determinarTipoContenido(nombreArchivo, i);
                     
-                    // Si es la primera imagen y la receta no tiene foto principal, asignarla
+                    
                     if (!fotoPrincipalAsignada && i == fotoPrincipalIndex) {
-                        // Actualizar la foto principal en la receta
+                       
                         receta.setFotoPrincipal(rutaArchivo.toString());
-                        save(receta); // Guardar la actualización
+                        save(receta);
                         fotoPrincipalAsignada = true;
                     }
 
-                    // Crear objeto Multimedia para todas las imágenes
+                    
                     Multimedia multimedia = new Multimedia();
                     multimedia.setReceta(receta); 
                     multimedia.setTipoContenido(tipoContenido);
                     multimedia.setExtension(getExtension(nombreArchivo));
                     multimedia.setUrlContenido(rutaArchivo.toString());
 
-                    // Si el nombre del archivo contiene información del paso, asociarlo
+                    
                     Integer numeroPaso = extraerNumeroPasoDeNombreArchivo(nombreArchivo);
                     if (numeroPaso != null) {
-                        // Buscar el paso correspondiente
+                       
                         List<Pasos> pasosReceta = recetasRepository.findById(receta.getIdReceta())
                                 .map(Recetas::getPasos)
                                 .orElse(new ArrayList<>());
@@ -122,7 +122,7 @@ public class RecetasDAO {
                         }
                     }
 
-                    // Guardar la información del archivo en la base de datos
+                   
                     multimediaRepository.save(multimedia);
                 } catch (IOException e) {
                     e.printStackTrace(); 
@@ -131,7 +131,7 @@ public class RecetasDAO {
         }
     }
 
-    // Método para determinar el tipo de contenido basado en el nombre del archivo
+    
     private String determinarTipoContenido(String nombreArchivo, int posicion) {
         if (nombreArchivo.toLowerCase().contains("principal")) {
             return "foto_principal";
@@ -146,10 +146,10 @@ public class RecetasDAO {
         }
     }
 
-    // Método para extraer número de paso del nombre del archivo
+    
     private Integer extraerNumeroPasoDeNombreArchivo(String nombreArchivo) {
         try {
-            // Buscar patrones como "paso_1", "step_2", etc.
+            
             if (nombreArchivo.toLowerCase().contains("paso_")) {
                 String[] partes = nombreArchivo.toLowerCase().split("paso_");
                 if (partes.length > 1) {
@@ -166,7 +166,7 @@ public class RecetasDAO {
                 }
             }
         } catch (NumberFormatException e) {
-            // Si no se puede extraer un número, retornar null
+            
         }
         return null;
     }
@@ -185,7 +185,7 @@ public class RecetasDAO {
     }
 
 	public Optional<Recetas> findByIdOptional(Integer idReceta) {
-		// TODO Auto-generated method stub
+		
 		return recetasRepository.findById(idReceta);
 	}
 }

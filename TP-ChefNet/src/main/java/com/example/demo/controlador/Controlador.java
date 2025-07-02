@@ -261,7 +261,7 @@ public class Controlador {
 	                tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
 	                tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
 	                dto.put("tipo", tipoDTO);
-	                dto.put("tipoReceta", tipoDTO); // Agregar también en formato tipoReceta para compatibilidad
+	                dto.put("tipoReceta", tipoDTO); 
 	            }
 	            
 	            if (receta.getUsuario() != null) {
@@ -288,7 +288,7 @@ public class Controlador {
 
 	    if (usuario.isPresent()) {
 	        Usuarios usuarios = usuario.get();
-	        String codigo = String.valueOf((int)(Math.random()*900000 + 100000)); // Código de 6 dígitos
+	        String codigo = String.valueOf((int)(Math.random()*900000 + 100000)); 
 	        usuarios.setCodigoRecuperacion(codigo);
 	        usuariosRepository.save(usuarios);
 
@@ -315,8 +315,8 @@ public class Controlador {
 	    if (usuariosRepository.existsByMail(usuario.getMail())) {
 	        return ResponseEntity.badRequest().body("Ya existe un usuario con ese mail");
 	    }
-	    usuario.setTipo("comun"); // por defecto, o "alumno" si corresponde
-	    usuario.setHabilitado("no"); // podría habilitarse luego de verificar el email, etc.
+	    usuario.setTipo("comun"); 
+	    usuario.setHabilitado("no"); 
 	    usuariosRepository.save(usuario);
 	    return ResponseEntity.ok("Usuario registrado exitosamente");
 	}
@@ -389,7 +389,7 @@ public class Controlador {
                     }
                     dto.put("pasos", pasosDTO);
                     
-                    // Mantener compatibilidad con instrucciones como string
+                    
                     StringBuilder instruccionesStr = new StringBuilder();
                     for (Pasos paso : pasos) {
                         if (instruccionesStr.length() > 0) {
@@ -415,14 +415,14 @@ public class Controlador {
     @PostMapping("/CargarNuevasRecetas")
     public ResponseEntity<Recetas> cargarNuevasRecetas(@RequestBody Recetas receta) {
         try {
-            // Asegurar que cada ingrediente tenga la referencia a la receta
+            
             if (receta.getIngredientes() != null && !receta.getIngredientes().isEmpty()) {
                 receta.getIngredientes().forEach(ingrediente -> {
                     ingrediente.setReceta(receta);
                 });
             }
             
-            // Autorizar automáticamente las recetas cargadas por usuarios comunes
+            
             if (receta.getUsuario() != null && "comun".equals(receta.getUsuario().getTipo())) {
                 receta.setAutorizada(true);
                 System.out.println("Receta autorizada automáticamente para usuario común: " + receta.getNombreReceta());
@@ -437,7 +437,7 @@ public class Controlador {
     }
     
     
-    //Lista de recetas a intentar (recordatorio de recetas a preparar)
+    
     @PostMapping("/lista/{idUsuario}")
     public ResponseEntity<String> agregarAListaRecetas(@PathVariable Usuarios idUsuario, @RequestBody Recetas receta) {
         usuariosDAO.agregarAListaRecetas(idUsuario, receta);
@@ -550,14 +550,14 @@ public class Controlador {
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    // Método interno para generar sugerencias de alias
+    
     private List<String> generarSugerenciasAliasInterno(String baseAlias) {
         List<String> sugerencias = new ArrayList<>();
-        String base = baseAlias.replaceAll("\\d+$", ""); // Remover números al final
+        String base = baseAlias.replaceAll("\\d+$", ""); 
         
         try {
-            // Generar diferentes tipos de sugerencias
-            for (int i = 0; i < 10; i++) { // Más intentos para asegurar variedad
+            
+            for (int i = 0; i < 10; i++) { 
                 String sugerencia;
                 switch (i % 6) {
                     case 0:
@@ -579,7 +579,7 @@ public class Controlador {
                         sugerencia = base + ((int)(Math.random() * 10000));
                 }
                 
-                // Verificar si la sugerencia está disponible
+                
                 boolean disponible = usuariosRepository.findAll().stream()
                     .noneMatch(usuario -> sugerencia.equalsIgnoreCase(usuario.getNickname()));
                 
@@ -587,7 +587,7 @@ public class Controlador {
                     sugerencias.add(sugerencia);
                 }
                 
-                // Si ya tenemos suficientes sugerencias, salir del bucle
+                
                 if (sugerencias.size() >= 5) {
                     break;
                 }
@@ -645,7 +645,7 @@ public class Controlador {
         List<String> sugerencias = new ArrayList<>();
         
         try {
-            String base = baseAlias.replaceAll("\\d+$", ""); // Remover números al final
+            String base = baseAlias.replaceAll("\\d+$", ""); 
             
             // Generar diferentes tipos de sugerencias
             for (int i = 0; i < 6; i++) {
@@ -698,14 +698,14 @@ public class Controlador {
         }
     }
 
-    //Registro de Usuarios (Etapa 1: envío de código)
+    
     @PostMapping("/registrarUsuarioEtapa1")
     public ResponseEntity<Map<String, Object>> registrarUsuarioEtapa1(@RequestParam String mail, @RequestParam String alias) {
         System.out.println("Iniciando registro de USUARIO con verificación - Email: " + mail + ", Alias: " + alias);
         
         Map<String, Object> response = new HashMap<>();
         
-        // Verificar si el correo ya está registrado
+        
         Optional<Usuarios> usuarioExistentePorCorreo = usuariosRepository.findByMail(mail);
         if (usuarioExistentePorCorreo.isPresent()) {
             Usuarios usuarioExistente = usuarioExistentePorCorreo.get();
@@ -744,7 +744,7 @@ public class Controlador {
         // Si todo está bien, proceder con el registro
         boolean registrado = usuariosDAO.registrarUsuarioEtapa1(mail, alias);
         if (registrado) {
-            // Forzar el envío del email de verificación inmediatamente después del registro
+            
             boolean emailEnviado = usuariosDAO.enviarCodigoVerificacionUsuario(mail);
             
             if (emailEnviado) {
@@ -753,8 +753,8 @@ public class Controlador {
                 return new ResponseEntity<>(response, HttpStatus.OK);
             } else {
                 response.put("error", "Se creó tu usuario, pero no pudimos enviar el código de verificación. Por favor, solicítalo de nuevo desde la pantalla de login.");
-                response.put("success", false); // Indicar que hubo un problema con el email
-                return new ResponseEntity<>(response, HttpStatus.OK); // OK porque el usuario se creó, pero con advertencia
+                response.put("success", false); 
+                return new ResponseEntity<>(response, HttpStatus.OK); 
             }
         }
         
@@ -832,16 +832,16 @@ public class Controlador {
             System.out.println("DNI frente: " + (dniFrente != null ? dniFrente.getOriginalFilename() : "null"));
             System.out.println("DNI fondo: " + (dniFondo != null ? dniFondo.getOriginalFilename() : "null"));
             
-            // Crear objeto Alumnos
+           
             Alumnos alumnos = new Alumnos();
             alumnos.setTramite(tramite);
             
-            // Limpiar espacios del número de tarjeta
+            
             if (nroTarjeta != null) {
                 alumnos.setNroTarjeta(nroTarjeta.replaceAll("\\s", ""));
             }
             
-            // Procesar archivos (por ahora como placeholders)
+            
             if (dniFrente != null && !dniFrente.isEmpty()) {
                 alumnos.setDniFrente("imagen_dni_frente_" + System.currentTimeMillis() + "_" + dniFrente.getOriginalFilename());
             }
@@ -852,7 +852,7 @@ public class Controlador {
             
             System.out.println("Objeto Alumnos creado: " + alumnos);
             
-            // Intentar convertir el idUsuario a entero
+            
             try {
                 int idUsuarioInt = Integer.parseInt(idUsuario);
                 boolean cambioExitoso = usuariosDAO.cambiarAAlumno(idUsuarioInt, alumnos, password);
@@ -960,7 +960,7 @@ public class Controlador {
         }
 	}
 	
-	//crear curso
+	
 	@PostMapping("/crearCurso")
 	public ResponseEntity<String> crearCurso(@RequestBody Cursos cursos) {
         try {
@@ -971,7 +971,7 @@ public class Controlador {
         }
 	}
 	
-	//crear cronograma
+	
 	@PostMapping("/crearCronograma")
 	public ResponseEntity<String> crearCronograma(@RequestBody CronogramaCursos cronogramaCursos) {
         try {
@@ -982,7 +982,7 @@ public class Controlador {
         }
 	}
 	
-	//realizar sugerencias 
+	
 	@GetMapping("/sugerenciasRecetas")
 	public ResponseEntity<List<Recetas>> sugerenciasCulinarias(@RequestParam(required = false) Integer idTipo) {
 	    TiposReceta tipo = null;
@@ -1008,11 +1008,11 @@ public class Controlador {
 	    List<String> names = allRecetas.stream()
 	        .map(Recetas::getNombreReceta)
 	        .collect(Collectors.toList());
-	    System.out.println("All recipe names in database: " + names);
+	    
 	    return ResponseEntity.ok(names);
 	}
 	
-	// Endpoint de depuración para probar búsqueda directamente
+	
 	@GetMapping("/debug/testSearch")
 	public ResponseEntity<Map<String, Object>> testSearch(@RequestParam String searchTerm) {
 	    Map<String, Object> result = new HashMap<>();
@@ -1031,7 +1031,7 @@ public class Controlador {
 	            .collect(Collectors.toList()));
 	    }
 	    
-	    System.out.println("Search test for '" + searchTerm + "': " + result);
+	    
 	    return ResponseEntity.ok(result);
 	}
 	
@@ -1060,9 +1060,9 @@ public class Controlador {
 	    }
 	}
 	
-	//------CONSULTA DE RECETAS----
 	
-	//Nombre 
+	
+	
 	@GetMapping("/getNombrereceta")
 	public ResponseEntity<List<Map<String, Object>>> consultarRecetaPorNombre(@RequestParam String nombrePlato, @RequestParam(required = false) String orden) {
 	    System.out.println("Search request for recipe name: '" + nombrePlato + "' with order: '" + orden + "'");
@@ -1332,7 +1332,7 @@ public class Controlador {
 	//Valorar una receta
 	@PostMapping("/valorarReceta/{idReceta}")
 	public ResponseEntity<String> valorarReceta(@PathVariable Integer idReceta, @RequestBody Calificaciones calificacion, @RequestParam(required = false) Integer idUsuario) {
-	    // Verificar si la receta existe
+	    
 	    Optional<Recetas> recetaOpt = recetasRepository.findById(idReceta);
 	    if (!recetaOpt.isPresent()) {
 	        return ResponseEntity.badRequest().body("Receta no encontrada.");
@@ -1340,20 +1340,20 @@ public class Controlador {
 
 	    Recetas receta = recetaOpt.get();
 
-	    // Verificar si el usuario está autenticado
+	    
 	    Usuarios usuarioAutenticado = null;
 	    
-	    // Intentar obtener usuario autenticado primero (para compatibilidad)
+	    
 	    try {
 	        usuarioAutenticado = usuariosDAO.getUsuarioAutenticado();
 	    } catch (Exception e) {
-	        // Si falla, intentar usar el idUsuario del parámetro
+	        
 	        if (idUsuario != null) {
 	            usuarioAutenticado = usuariosDAO.findById(idUsuario);
 	        }
 	    }
 	    
-	    // Si aún no tenemos usuario, intentar usar el del request body
+	    
 	    if (usuarioAutenticado == null && calificacion.getIdusuario() != null) {
 	        usuarioAutenticado = calificacion.getIdusuario();
 	    }
@@ -1362,10 +1362,10 @@ public class Controlador {
 	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debe iniciar sesión para valorar la receta.");
 	    }
 
-	    // Hacer la variable final para uso en stream
+	    
 	    final Usuarios usuario = usuarioAutenticado;
 
-	    // Buscar si ya existe una valoración del usuario para esta receta
+	    
 	    List<Calificaciones> valoracionesExistentes = calificacionesRepository.findByIdReceta(receta);
 	    Optional<Calificaciones> valoracionExistente = valoracionesExistentes.stream()
 	        .filter(v -> v.getIdusuario() != null && v.getIdusuario().getIdUsuario().equals(usuario.getIdUsuario()))
@@ -1374,30 +1374,30 @@ public class Controlador {
 	    Calificaciones valoracionFinal;
 	    
 	    if (valoracionExistente.isPresent()) {
-	        // Actualizar valoración existente
+	      
 	        valoracionFinal = valoracionExistente.get();
 	        valoracionFinal.setCalificacion(calificacion.getCalificacion());
 	        
-	        // Solo actualizar comentarios si se proporciona uno nuevo
+	        
 	        if (calificacion.getComentarios() != null && !calificacion.getComentarios().trim().isEmpty()) {
 	            valoracionFinal.setComentarios(calificacion.getComentarios());
-	            valoracionFinal.setAutorizado(false); // Requiere nueva moderación si hay comentario
+	            valoracionFinal.setAutorizado(false);
 	        }
 	        
 	        System.out.println("Actualizando valoración existente para usuario " + usuario.getIdUsuario() + " en receta " + idReceta);
 	    } else {
-	        // Crear nueva valoración
+	       
 	        valoracionFinal = new Calificaciones();
 	        valoracionFinal.setIdReceta(receta);
 	        valoracionFinal.setIdusuario(usuario);
 	        valoracionFinal.setCalificacion(calificacion.getCalificacion());
 	        valoracionFinal.setComentarios(calificacion.getComentarios());
-	        valoracionFinal.setAutorizado(false); // Por defecto no autorizado, requiere moderación
+	        valoracionFinal.setAutorizado(false); 
 	        
 	        System.out.println("Creando nueva valoración para usuario " + usuario.getIdUsuario() + " en receta " + idReceta);
 	    }
 
-	    // Guardar la valoración (nueva o actualizada)
+	  
 	    calificacionesRepository.save(valoracionFinal);
 
 	    String mensaje = valoracionExistente.isPresent() ? 
@@ -1459,18 +1459,18 @@ public class Controlador {
             if (recetaExistente.isPresent()) {
                 boolean reemplazar = preguntarSiReemplazar(); 
                 if (reemplazar) {
-                    recetasDAO.eliminarReceta(recetaExistente.get());  // Reemplazar la receta
+                    recetasDAO.eliminarReceta(recetaExistente.get());  
                 } else {
                     // Permitir editar la receta existente
                     receta.setIdReceta(recetaExistente.get().getIdReceta());
                 }
             }
 
-            // Configurar la receta, siempre con autorización pendiente
+            
             receta.setUsuario(usuario);
             receta.setAutorizada(false);
             
-            // Establecer fecha actual si no está definida
+            
             if (receta.getFecha() == null) {
                 receta.setFecha(java.time.LocalDate.now());
             }
@@ -1482,13 +1482,13 @@ public class Controlador {
                 });
             }
 
-            // Guardar la receta primero para obtener su ID
+            
             recetasDAO.save(receta);
             
-            // Procesar pasos individuales a partir de las instrucciones
+           
             procesarPasosDeReceta(receta);
             
-            // Guardar archivos con lógica mejorada para asociar con pasos
+           
             guardarArchivosDeRecetaMejorado(archivos, receta);
 
             return ResponseEntity.ok("Receta cargada exitosamente y pendiente de autorización.");
@@ -1513,14 +1513,14 @@ public class Controlador {
                     paso.setNroPaso(i + 1);
                     paso.setTexto(textoPaso);
                     
-                    // Guardar el paso en la base de datos
+                    
                     pasosDAO.save(paso);
                 }
             }
         }
     }
 
-    // Método mejorado que guarda los archivos asociados a la receta
+  
     public void guardarArchivosDeRecetaMejorado(MultipartFile[] archivos, Recetas receta) {
         if (archivos != null && archivos.length > 0) {
             
@@ -1542,17 +1542,16 @@ public class Controlador {
                 return false; 
             }
         }
-        return true;  // Si está conectado a una red sin cargo
+        return true;  
     }
 
-    // Método para mostrar advertencia al usuario y pedirle si desea usar una red con cargo
+    
     private boolean mostrarAdvertenciaRedConCargo() {
-        // Lógica para verificar el estado de la conexión
-        boolean estaConectadoALaRed = verificarConexionRed();  // Método hipotético que verifica si hay conexión
+        
+        boolean estaConectadoALaRed = verificarConexionRed();  
 
         if (!estaConectadoALaRed) {
-            // Si no está conectado a una red sin cargo
-            // Mostrar una advertencia (en este caso simula la interacción)
+           
             System.out.println("No estás conectado a una red gratuita.");
             System.out.println("¿Deseas usar una red con cargo? (S/N):");
 
@@ -1560,16 +1559,16 @@ public class Controlador {
             String respuesta = scanner.nextLine();
 
             if (respuesta.equalsIgnoreCase("S")) {
-                // Si el usuario decide usar la red con cargo
+                
                 System.out.println("Usando red con cargo...");
                 return true;
             } else {
-                // Si decide no usar la red con cargo
+                
                 System.out.println("Guardando la receta para cargarla más tarde...");
                 return false;
             }
         } else {
-            // Si está conectado a una red gratuita, no es necesario preguntar
+            
             System.out.println("Conexión gratuita detectada, procediendo con la carga.");
             return true;
         }
@@ -1600,7 +1599,7 @@ public class Controlador {
         }
     }
     
-    //---GET ALL RECETAS
+    
     @GetMapping("/getAllRecetas")
     public ResponseEntity<List<Map<String, Object>>> obtenerRecetas() {
         try {
@@ -2097,7 +2096,7 @@ public class Controlador {
             }
             
         } catch (Exception e) {
-            System.out.println(" Backend: Error marking recipe completion: " + e.getMessage());
+            
             return new ResponseEntity<>("Error al marcar receta: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -2106,8 +2105,8 @@ public class Controlador {
     private Map<Long, List<Recetas>> recetasPersonalizadasPorUsuario = new HashMap<>();
     @GetMapping("/ajustarPorciones/{idReceta}")
     public ResponseEntity<?> ajustarReceta(@PathVariable Integer idReceta,
-            @RequestParam String tipo, // "mitad", "doble" o "porciones"
-            @RequestParam(required = false) Integer porciones, // si es tipo = "porciones"
+            @RequestParam String tipo, 
+            @RequestParam(required = false) Integer porciones, 
             @RequestParam(required = false) Integer idUsuario
         ) {
         // Verificar si el usuario es visitante
@@ -2264,16 +2263,16 @@ public class Controlador {
         @RequestParam int idAlumno,
         @RequestParam int idCronograma) {
 
-        System.out.println("=== INSCRIPCION DEBUG ===");
+        
         System.out.println("Recibido idAlumno: " + idAlumno);
         System.out.println("Recibido idCronograma: " + idCronograma);
 
         try {
-            // Verificar que el alumno existe, si no existe pero el usuario sí, crearlo automáticamente
+            
             Optional<Alumnos> alumnoOpt = alumnosRepository.findById(idAlumno);
             
             if (!alumnoOpt.isPresent()) {
-                // Verificar si existe como usuario
+                
                 Optional<Usuarios> usuarioOpt = usuariosRepository.findById(idAlumno);
                 if (!usuarioOpt.isPresent()) {
                     return ResponseEntity.badRequest().body("Usuario no encontrado");
@@ -2284,12 +2283,12 @@ public class Controlador {
                     return ResponseEntity.badRequest().body("El usuario no es de tipo alumno");
                 }
                 
-                // Crear automáticamente la entrada de alumno
+                
                 Alumnos alumno = new Alumnos();
                 alumno.setIdAlumno(idAlumno);
-                alumno.setNroTarjeta(usuario.getMedioPago()); // Usar el medio de pago como número de tarjeta
-                alumno.setCuentaCorriente(new java.math.BigDecimal("10000.00")); // Cuenta corriente por defecto
-                alumno.setUsuario(usuario); // Establecer la relación con el usuario
+                alumno.setNroTarjeta(usuario.getMedioPago()); 
+                alumno.setCuentaCorriente(new java.math.BigDecimal("10000.00")); 
+                alumno.setUsuario(usuario); 
                 alumnosRepository.save(alumno);
                 
                 System.out.println("Alumno creado automáticamente para usuario ID: " + idAlumno);
@@ -2324,7 +2323,7 @@ public class Controlador {
                 dto.put("id", curso.getIdCurso());
                 dto.put("idCurso", curso.getIdCurso());
                 dto.put("idCronograma", cronograma.getIdCronograma());
-                dto.put("idInscripcion", inscripcion.getIdInscripcion()); // ID para cancelar
+                dto.put("idInscripcion", inscripcion.getIdInscripcion()); 
                 dto.put("title", curso.getDescripcion());
                 dto.put("descripcion", curso.getDescripcion());
                 dto.put("contenidos", curso.getContenidos());
@@ -2340,14 +2339,14 @@ public class Controlador {
                 dto.put("estadoPago", inscripcion.getEstadoPago());
                 dto.put("monto", inscripcion.getMonto());
                 
-                System.out.println("=== CURSO DEL ALUMNO DEBUG ===");
+                
                 System.out.println("Curso ID: " + curso.getIdCurso());
                 System.out.println("Cronograma ID: " + cronograma.getIdCronograma());
                 System.out.println("Inscripcion ID: " + inscripcion.getIdInscripcion());
                 System.out.println("Estado inscripcion: " + inscripcion.getEstadoInscripcion());
                 System.out.println("Estado pago: " + inscripcion.getEstadoPago());
                 
-                // Información de la sede
+                
                 if (sede != null) {
                     Map<String, Object> sedeDto = new HashMap<>();
                     sedeDto.put("id", sede.getIdSede());
@@ -2408,7 +2407,7 @@ public class Controlador {
     //Darse de baja de un curso
     @PostMapping("/baja/{idInscripcion}")
     public ResponseEntity<String> bajaCurso(@PathVariable int idInscripcion, @RequestParam boolean reintegroEnTarjeta) {
-        System.out.println("=== CANCELAR INSCRIPCION DEBUG ===");
+        
         System.out.println("idInscripcion: " + idInscripcion);
         System.out.println("reintegroEnTarjeta: " + reintegroEnTarjeta);
         
@@ -2448,7 +2447,7 @@ public class Controlador {
             // Si la baja es después del inicio del curso, no hay reintegro pero se permite
             reintegro = BigDecimal.ZERO;
             mensajeReintegro = "Sin reintegro (curso ya iniciado)";
-            System.out.println("⚠️ Cancelación después del inicio - Sin reintegro");
+            System.out.println("Cancelación después del inicio - Sin reintegro");
         }
 
         
@@ -2458,10 +2457,6 @@ public class Controlador {
             alumno.setCuentaCorriente(cuentaAnterior.add(reintegro));
             alumnosRepository.save(alumno);
             
-            System.out.println("Cuenta corriente actualizada:");
-            System.out.println("   - Saldo anterior: $" + cuentaAnterior);
-            System.out.println("   - Reintegro: $" + reintegro);
-            System.out.println("   - Nuevo saldo: $" + alumno.getCuentaCorriente());
         }
 
         inscripciones.setEstadoInscripcion("cancelado");
@@ -2482,18 +2477,18 @@ public class Controlador {
     }
 
 
-    // Verificación de disponibilidad de nombre de usuario
+    
     @GetMapping("/auth/check-username")
     public ResponseEntity<Map<String, Object>> checkUsernameAvailability(@RequestParam String username) {
         Map<String, Object> result = new HashMap<>();
         
         try {
-            // Verificar si el alias está disponible usando el DAO
+            
             boolean available = usuariosDAO.isUsernameAvailable(username);
             result.put("available", available);
             
             if (!available) {
-                // Generar sugerencias si el alias no está disponible
+               
                 List<String> suggestions = new ArrayList<>();
                 String base = username.replaceAll("\\d+$", "");
                 for (int i = 0; i < 3; i++) {
@@ -2507,7 +2502,7 @@ public class Controlador {
                 result.put("suggestions", new ArrayList<>());
             }
         } catch (Exception e) {
-            result.put("available", true); // Por defecto permitir si hay error
+            result.put("available", true); 
             result.put("suggestions", new ArrayList<>());
             result.put("error", e.getMessage());
         }
@@ -2568,7 +2563,7 @@ public class Controlador {
         }
     }
 
-    //---APROBAR RECETA (Solo para administradores/empresa)
+    
     @PutMapping("/aprobarReceta/{idReceta}")
     public ResponseEntity<String> aprobarReceta(@PathVariable Integer idReceta, @RequestParam boolean aprobar) {
         try {
@@ -2590,7 +2585,7 @@ public class Controlador {
         }
     }
 
-    //---CREAR USUARIO EMPRESA (Solo para desarrollo/setup inicial)
+    
     @PostMapping("/crearUsuarioEmpresa")
     public ResponseEntity<String> crearUsuarioEmpresa(@RequestBody Usuarios usuario) {
         try {
@@ -2598,8 +2593,8 @@ public class Controlador {
                 return ResponseEntity.badRequest().body("Ya existe un usuario con ese email");
             }
             
-            usuario.setTipo("empresa"); // Set user type as company representative
-            usuario.setHabilitado("Si"); // Enable immediately
+            usuario.setTipo("empresa"); 
+            usuario.setHabilitado("Si"); 
             usuariosRepository.save(usuario);
             
             return ResponseEntity.ok("Usuario empresa creado exitosamente");
@@ -2608,7 +2603,7 @@ public class Controlador {
         }
     }
 
-    //---CREAR USUARIO ADMIN (Solo para desarrollo/setup inicial)
+    
     @PostMapping("/crearUsuarioAdmin")
     public ResponseEntity<String> crearUsuarioAdmin(@RequestBody Usuarios usuario) {
         try {
@@ -2616,9 +2611,9 @@ public class Controlador {
                 return ResponseEntity.badRequest().body("Ya existe un usuario con ese email");
             }
             
-            usuario.setTipo("admin"); // Set user type as admin
-            usuario.setRol("admin"); // Set role as admin
-            usuario.setHabilitado("Si"); // Enable immediately
+            usuario.setTipo("admin"); 
+            usuario.setRol("admin"); 
+            usuario.setHabilitado("Si"); 
             usuariosRepository.save(usuario);
             
             return ResponseEntity.ok("Usuario admin creado exitosamente");
@@ -2630,7 +2625,7 @@ public class Controlador {
     @PutMapping("/recetas/{idReceta}")
     public ResponseEntity<String> actualizarReceta(@PathVariable Integer idReceta, @RequestBody Recetas recetaActualizada) {
         try {
-            System.out.println("=== ACTUALIZANDO RECETA ===");
+            
             System.out.println("ID Receta: " + idReceta);
             System.out.println("Usuario en request: " + (recetaActualizada.getUsuario() != null ? recetaActualizada.getUsuario().getIdUsuario() : "NULL"));
             
@@ -2740,7 +2735,7 @@ public class Controlador {
                 for (int i = 0; i < recetaActualizada.getPasos().size(); i++) {
                     Pasos paso = recetaActualizada.getPasos().get(i);
                     paso.setIdReceta(receta);
-                    paso.setNroPaso(i + 1); // Asegurar orden correcto
+                    paso.setNroPaso(i + 1); 
                     pasosRepository.save(paso);
                 }
                 
@@ -2767,7 +2762,7 @@ public class Controlador {
         }
     }
 
-    //---OBTENER TIPOS DE RECETA DISPONIBLES
+    
     @GetMapping("/getTiposReceta")
     public ResponseEntity<List<Map<String, Object>>> obtenerTiposReceta() {
         try {
@@ -2790,7 +2785,7 @@ public class Controlador {
         }
     }
 
-    //---OBTENER RECETAS PENDIENTES DE APROBACIÓN
+    
     @GetMapping("/getRecetasPendientesAprobacion")
     public ResponseEntity<List<Map<String, Object>>> obtenerRecetasPendientesAprobacion() {
         try {
@@ -2809,11 +2804,11 @@ public class Controlador {
                     dto.put("autorizada", receta.isAutorizada());
                     dto.put("instrucciones", receta.getInstrucciones());
                     
-                    // Calcular calificación promedio
+                    
                     List<Calificaciones> calificaciones = calificacionesRepository.findByIdReceta(receta);
                     if (!calificaciones.isEmpty()) {
                         double totalRating = calificaciones.stream()
-                            .filter(cal -> cal != null && cal.getCalificacion() > 0) // Filtrar calificaciones válidas
+                            .filter(cal -> cal != null && cal.getCalificacion() > 0) 
                             .mapToDouble(cal -> cal.getCalificacion())
                             .sum();
                         long validRatingsCount = calificaciones.stream()
@@ -2822,7 +2817,7 @@ public class Controlador {
                         
                         if (validRatingsCount > 0) {
                             double averageRating = totalRating / validRatingsCount;
-                            dto.put("calificacionPromedio", Math.round(averageRating * 10.0) / 10.0); // Redondear a 1 decimal
+                            dto.put("calificacionPromedio", Math.round(averageRating * 10.0) / 10.0); 
                         } else {
                             dto.put("calificacionPromedio", 0.0);
                         }
@@ -2837,7 +2832,7 @@ public class Controlador {
                         tipoDTO.put("idTipo", receta.getIdTipo().getIdTipo());
                         tipoDTO.put("descripcion", receta.getIdTipo().getDescripcion());
                         dto.put("tipo", tipoDTO);
-                        dto.put("tipoReceta", tipoDTO); // Agregar también en formato tipoReceta para compatibilidad
+                        dto.put("tipoReceta", tipoDTO); 
                     }
                     
                     if (receta.getUsuario() != null) {
@@ -2873,13 +2868,13 @@ public class Controlador {
         }
     }
 
-    //---OBTENER RECETAS PENDIENTES (Alias para compatibilidad con frontend)
+   
     @GetMapping("/getRecetasPendientes")
     public ResponseEntity<List<Map<String, Object>>> obtenerRecetasPendientes() {
         return obtenerRecetasPendientesAprobacion();
     }
 
-    //Añadir ingredientes a una receta existente
+    
     @PostMapping("/recetas/{idReceta}/ingredientes")
     public ResponseEntity<?> agregarIngredientesAReceta(
             @PathVariable Integer idReceta,
@@ -2892,20 +2887,20 @@ public class Controlador {
             
             Recetas receta = recetaOpt.get();
             
-            // Verificar que el usuario actual sea el propietario de la receta
+            
             Usuarios usuarioActual = usuariosDAO.getUsuarioAutenticado();
             if (usuarioActual == null || !receta.getUsuario().getIdUsuario().equals(usuarioActual.getIdUsuario())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body("No tienes permiso para modificar esta receta");
             }
             
-            // Establecer la referencia a la receta en cada ingrediente
+           
             for (Ingredientes ingrediente : ingredientes) {
                 ingrediente.setReceta(receta);
                 ingredientesRepository.save(ingrediente);
             }
             
-            // Actualizar la lista de ingredientes de la receta
+            
             List<Ingredientes> ingredientesActuales = receta.getIngredientes();
             if (ingredientesActuales == null) {
                 ingredientesActuales = new ArrayList<>();
@@ -2913,7 +2908,7 @@ public class Controlador {
             ingredientesActuales.addAll(ingredientes);
             receta.setIngredientes(ingredientesActuales);
             
-            // Guardar la receta actualizada
+         
             recetasRepository.save(receta);
             
             return ResponseEntity.ok().body("Ingredientes agregados correctamente");
@@ -2924,13 +2919,13 @@ public class Controlador {
         }
     }
 
-    //Obtener todos los ingredientes disponibles
+  
     @GetMapping("/ingredientes")
     public ResponseEntity<List<Map<String, Object>>> obtenerTodosLosIngredientes() {
         try {
             List<Ingredientes> ingredientes = ingredientesRepository.findAll();
             
-            // Convertir a DTO para evitar referencias circulares
+            
             List<Map<String, Object>> ingredientesDTO = ingredientes.stream()
                 .map(ingrediente -> {
                     Map<String, Object> dto = new HashMap<>();
@@ -2939,7 +2934,7 @@ public class Controlador {
                     dto.put("cantidad", ingrediente.getCantidad());
                     dto.put("unidadMedida", ingrediente.getUnidadMedida());
                     
-                    // Incluir referencia mínima a la receta si existe
+                    
                     if (ingrediente.getReceta() != null) {
                         Map<String, Object> recetaDTO = new HashMap<>();
                         recetaDTO.put("idReceta", ingrediente.getReceta().getIdReceta());
@@ -2958,13 +2953,13 @@ public class Controlador {
         }
     }
 
-    //Endpoint específico para creación de recetas con ingredientes y pasos desde el frontend
+   
     @PostMapping("/crearRecetaConIngredientes")
     public ResponseEntity<?> crearRecetaConIngredientes(@RequestBody Map<String, Object> recetaData) {
         try {
             System.out.println("Datos recibidos para crear receta: " + recetaData);
             
-            // Obtener usuario autenticado
+           
             Usuarios usuarioActual = usuariosDAO.getUsuarioAutenticado();
             
             if (usuarioActual == null) {
@@ -2990,10 +2985,10 @@ public class Controlador {
             nuevaReceta.setCantidadPersonas(cantidadPersonas != null ? cantidadPersonas : 1);
             nuevaReceta.setInstrucciones(instrucciones);
             nuevaReceta.setUsuario(usuarioActual);
-            nuevaReceta.setAutorizada(false); // Siempre pendiente de aprobación
+            nuevaReceta.setAutorizada(false); 
             nuevaReceta.setFecha(java.time.LocalDate.now());
             
-            // Establecer tipo de receta
+            
             if (recetaData.get("idTipo") != null) {
                 Map<String, Object> tipoData = (Map<String, Object>) recetaData.get("idTipo");
                 Integer idTipo = (Integer) tipoData.get("idTipo");
@@ -3005,10 +3000,10 @@ public class Controlador {
                 }
             }
             
-            // Guardar la receta para obtener su ID
+            
             Recetas recetaGuardada = recetasRepository.save(nuevaReceta);
             
-            // Procesar ingredientes
+            
             if (recetaData.get("ingredientes") != null && recetaData.get("ingredientes") instanceof List) {
                 List<Map<String, Object>> ingredientesData = (List<Map<String, Object>>) recetaData.get("ingredientes");
                 
@@ -3029,7 +3024,7 @@ public class Controlador {
                 }
             }
             
-            // Procesar fotos adicionales de la receta
+            
             if (recetaData.get("fotos") != null && recetaData.get("fotos") instanceof List) {
                 List<Map<String, Object>> fotosData = (List<Map<String, Object>>) recetaData.get("fotos");
                 
@@ -3044,14 +3039,14 @@ public class Controlador {
                         multimedia.setTipoContenido(tipoContenido != null ? tipoContenido : "foto");
                         multimedia.setExtension(extension != null ? extension : ".jpg");
                         multimedia.setUrlContenido(urlFoto);
-                        // No establecer idPaso porque es una foto de la receta en general
+                        
                         
                         multimediaRepository.save(multimedia);
                     }
                 }
             }
             
-            // Procesar fotos de instrucciones (asociadas a pasos específicos)
+           
             if (recetaData.get("fotosInstrucciones") != null && recetaData.get("fotosInstrucciones") instanceof List) {
                 List<Map<String, Object>> fotosInstruccionesData = (List<Map<String, Object>>) recetaData.get("fotosInstrucciones");
                 
@@ -3108,13 +3103,13 @@ public class Controlador {
         }
     }
 
-    // Nuevo endpoint más permisivo que acepta el ID del usuario como parámetro
+ 
     @PostMapping("/crearRecetaSimple")
     public ResponseEntity<?> crearRecetaSimple(@RequestBody Map<String, Object> recetaData) {
         try {
             System.out.println("Datos recibidos para crear receta simple: " + recetaData);
             
-            // Obtener usuario desde los datos de la receta en lugar del contexto de seguridad
+        
             Integer idUsuario = null;
             
             if (recetaData.get("usuario") != null && recetaData.get("usuario") instanceof Map) {
@@ -3127,7 +3122,7 @@ public class Controlador {
                     .body(Map.of("success", false, "message", "ID de usuario requerido."));
             }
             
-            // Buscar el usuario por ID
+         
             Optional<Usuarios> usuarioOpt = usuariosRepository.findById(idUsuario);
             if (!usuarioOpt.isPresent()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -3136,10 +3131,10 @@ public class Controlador {
             
             Usuarios usuario = usuarioOpt.get();
 
-            // Crear nueva receta
+           
             Recetas nuevaReceta = new Recetas();
             
-            // Datos básicos de la receta
+          
             String nombreReceta = (String) recetaData.get("nombreReceta");
             String descripcionReceta = (String) recetaData.get("descripcionReceta");
             String fotoPrincipal = (String) recetaData.get("fotoPrincipal");
@@ -3154,10 +3149,10 @@ public class Controlador {
             nuevaReceta.setCantidadPersonas(cantidadPersonas != null ? cantidadPersonas : 1);
             nuevaReceta.setInstrucciones(instrucciones);
             nuevaReceta.setUsuario(usuario);
-            nuevaReceta.setAutorizada(false); // Siempre pendiente de aprobación
+            nuevaReceta.setAutorizada(false); 
             nuevaReceta.setFecha(java.time.LocalDate.now());
             
-            // Establecer tipo de receta
+           
             if (recetaData.get("idTipo") != null) {
                 if (recetaData.get("idTipo") instanceof Map) {
                     Map<String, Object> tipoData = (Map<String, Object>) recetaData.get("idTipo");
@@ -3177,10 +3172,10 @@ public class Controlador {
                 }
             }
             
-            // Guardar la receta para obtener su ID
+            
             Recetas recetaGuardada = recetasRepository.save(nuevaReceta);
             
-            // Procesar ingredientes
+       
             if (recetaData.get("ingredientes") != null && recetaData.get("ingredientes") instanceof List) {
                 List<Map<String, Object>> ingredientesData = (List<Map<String, Object>>) recetaData.get("ingredientes");
                 
@@ -3201,7 +3196,7 @@ public class Controlador {
                 }
             }
             
-            // Procesar pasos de las instrucciones
+      
             if (instrucciones != null && !instrucciones.trim().isEmpty()) {
                 String[] pasosTexto = instrucciones.split("\\n");
                 for (int i = 0; i < pasosTexto.length; i++) {
@@ -3217,14 +3212,14 @@ public class Controlador {
                 }
             }
             
-            // Procesar multimedia/fotos adicionales
+            
             if (recetaData.get("fotos") != null && recetaData.get("fotos") instanceof List) {
                 List<Map<String, Object>> fotosData = (List<Map<String, Object>>) recetaData.get("fotos");
                 for (Map<String, Object> fotoData : fotosData) {
                     String urlFoto = (String) fotoData.get("url");
                     String tipoContenido = (String) fotoData.get("tipo");
                     String extension = (String) fotoData.get("extension");
-                    Integer idPaso = (Integer) fotoData.get("idPaso"); // Para fotos de pasos específicos
+                    Integer idPaso = (Integer) fotoData.get("idPaso"); 
                     
                     if (urlFoto != null && !urlFoto.trim().isEmpty()) {
                         Multimedia multimedia = new Multimedia();
@@ -3233,7 +3228,7 @@ public class Controlador {
                         multimedia.setTipoContenido(tipoContenido != null ? tipoContenido : "foto");
                         multimedia.setExtension(extension != null ? extension : "jpg");
                         
-                        // Si es una foto de un paso específico, buscar el paso correspondiente
+                        
                         if (idPaso != null) {
                             List<Pasos> pasosReceta = pasosRepository.findByIdRecetaOrderByNroPaso(recetaGuardada);
                             if (idPaso > 0 && idPaso <= pasosReceta.size()) {
@@ -3246,7 +3241,7 @@ public class Controlador {
                 }
             }
             
-            // Procesar fotos de pasos desde las instrucciones (formato alternativo)
+            
             if (recetaData.get("fotosInstrucciones") != null && recetaData.get("fotosInstrucciones") instanceof List) {
                 List<Map<String, Object>> fotosInstruccionesData = (List<Map<String, Object>>) recetaData.get("fotosInstrucciones");
                 List<Pasos> pasosReceta = pasosRepository.findByIdRecetaOrderByNroPaso(recetaGuardada);
@@ -3258,7 +3253,7 @@ public class Controlador {
                     String extension = (String) fotoInstruccion.get("extension");
                     
                     if (urlFoto != null && !urlFoto.trim().isEmpty() && numeroPaso != null) {
-                        // Buscar el paso correspondiente
+                      
                         Pasos pasoCorrespondiente = null;
                         for (Pasos paso : pasosReceta) {
                             if (paso.getNroPaso() == numeroPaso) {
@@ -3301,11 +3296,11 @@ public class Controlador {
         }
     }
 
-    //Endpoint específico para actualización de recetas con pasos y fotos
+   
     @PutMapping("/actualizarRecetaConPasos/{idReceta}")
     public ResponseEntity<?> actualizarRecetaConPasos(@PathVariable Integer idReceta, @RequestBody Map<String, Object> recetaData) {
         try {
-            System.out.println("=== ACTUALIZANDO RECETA CON PASOS ===");
+           
             System.out.println("ID Receta: " + idReceta);
             System.out.println("Datos recibidos: " + recetaData);
             
@@ -3318,7 +3313,7 @@ public class Controlador {
             
             Recetas receta = recetaExistente.get();
             
-            // Verificar permisos de usuario
+           
             Integer idUsuario = null;
             if (recetaData.get("idUsuario") != null) {
                 idUsuario = (Integer) recetaData.get("idUsuario");

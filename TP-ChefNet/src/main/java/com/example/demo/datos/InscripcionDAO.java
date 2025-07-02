@@ -42,7 +42,7 @@ public class InscripcionDAO {
         return inscripcionRepository.findById(idInscripcion);
     }
 
-    // Inscribir un alumno a un curso - ACTUALIZADO para usar cronograma
+    
     public void inscribirAlumno(int idAlumno, int idCronograma) {
         Alumnos alumno = alumnosRepository.findById(idAlumno)
                 .orElseThrow(() -> new RuntimeException("Alumno no encontrado"));
@@ -53,24 +53,23 @@ public class InscripcionDAO {
         Inscripcion inscripcion = new Inscripcion();
         inscripcion.setAlumno(alumno);
         inscripcion.setCronograma(cronograma);
-        // ✅ CORREGIDO: Setear el curso porque la tabla lo requiere
+        
         inscripcion.setCurso(cronograma.getIdCurso());
         inscripcion.setFechaInscripcion(new java.util.Date());
-        inscripcion.setEstadoInscripcion("Inscrito"); //puede ser cancelado, etc
-        inscripcion.setEstadoPago("Pagado"); //puede ser en proceso, etc
+        inscripcion.setEstadoInscripcion("Inscrito"); 
+        inscripcion.setEstadoPago("Pagado"); 
         inscripcion.setMonto(cronograma.getIdCurso().getPrecio());
  
         inscripcionRepository.save(inscripcion);
     }
 
     public void cancelarInscripcion(int idAlumno, int idCronograma) {
-        // ✅ CORREGIDO: Buscar por cronograma en lugar de curso
-        // Nota: Necesitaremos agregar este método en InscripcionRepository
+        
         Inscripcion inscripcion = inscripcionRepository
             .findByAlumno_IdAlumnoAndCronograma_IdCronograma(idAlumno, idCronograma)
             .orElseThrow(() -> new RuntimeException("Inscripción no encontrada"));
 
         inscripcion.setEstadoInscripcion("Cancelado");
-        inscripcionRepository.save(inscripcion); // ✅ Cambiar estado en lugar de eliminar
+        inscripcionRepository.save(inscripcion); 
     }
 }
